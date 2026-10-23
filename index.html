@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Relay</title>
+<style>
+  :root { --bg:#fafaf8; --surface:#fff; --soft:#f0f1ee; --ink:#1c2420; --mute:#6b7771; --line:#e2e5e0; --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warn:#d38a2b; --off:#b3bbb6; --radius:14px; --shadow:0 8px 30px rgba(20,30,25,.12); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121513; --surface:#1a1e1c; --soft:#232826; --ink:#e8eeea; --mute:#8f9c95; --line:#2b312e; --accent:#6ea8ff; --accent-ink:#06130f; --shadow:0 8px 30px rgba(0,0,0,.5); } }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; cursor:pointer; color:inherit; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .off { display:none !important; }
+  .btn { padding:9px 16px; font-weight:600; font-size:14px; color:var(--accent-ink); background:var(--accent); border:0; border-radius:10px; }
+  .btn.ghost { color:var(--ink); background:transparent; border:1px solid var(--line); }
+  .btn.small { padding:5px 11px; font-size:13px; }
+  .btn.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--off); flex:none; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); }
+
+  /* login */
+  #login { min-height:100%; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { width:100%; max-width:420px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
+  .logo { width:28px; height:28px; border-radius:9px; background:linear-gradient(135deg, #2563eb, #38bdf8); color:#fff; display:grid; place-items:center; font-size:16px; font-weight:700; line-height:1; }
+  .card h1 { font-size:24px; line-height:1.25; margin:18px 0 8px; }
+  .card p { color:var(--mute); margin:0 0 16px; font-size:15px; }
+  .card > .btn { width:100%; padding:12px; font-size:15px; }
+  .card .row .btn { flex:none; padding:10px 16px; }
+  .or { text-align:center; color:var(--mute); font-size:13px; margin:14px 0; }
+  .row { display:flex; gap:8px; }
+  input[type=password], input[type=text] { flex:1; min-width:0; padding:10px 12px; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+  code.key { display:block; padding:12px; margin:0 0 12px; background:var(--soft); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
+  .card .err { color:var(--warn); font-size:14px; min-height:20px; margin:10px 0 0; }
+
+  /* app */
+  #app { height:100%; display:flex; flex-direction:column; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface); }
+  .top .actions { display:flex; gap:8px; align-items:center; }
+  .pill { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:13px; font-weight:600; background:var(--soft); border:1px solid var(--line); border-radius:99px; max-width:55vw; }
+  .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #log { flex:1; overflow-y:auto; padding:24px 16px 8px; }
+  .col { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+  #empty { text-align:center; padding:8vh 0 0; }
+  #empty h2 { font-size:26px; margin:0 0 6px; } #empty p { color:var(--mute); margin:0 0 20px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .chip { padding:8px 14px; font-size:14px; background:var(--surface); border:1px solid var(--line); border-radius:99px; }
+  .chip:hover { border-color:var(--accent); }
+  .msg { max-width:88%; white-space:pre-wrap; word-wrap:break-word; }
+  .me { align-self:flex-end; padding:10px 15px; background:var(--accent); color:var(--accent-ink); border-radius:18px 18px 4px 18px; }
+  .bot { align-self:flex-start; max-width:100%; }
+  .bot .body { padding:2px 0; }
+  .bot code { padding:1px 5px; background:var(--soft); border-radius:5px; font:13.5px ui-monospace, Menlo, monospace; }
+  .bot pre { margin:8px 0; padding:12px; overflow-x:auto; background:var(--soft); border-radius:10px; white-space:pre; }
+  .bot pre code { padding:0; background:none; }
+  .meta { margin-top:4px; font-size:12px; color:var(--mute); }
+  .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; }
+  .thinking { color:var(--mute); font-size:14px; }
+  .composer { padding:10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .box { max-width:720px; margin:0 auto; display:flex; align-items:flex-end; gap:8px; padding:8px 8px 8px 16px; background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); }
+  .box:focus-within { border-color:var(--accent); }
+  textarea { flex:1; max-height:160px; resize:none; border:0; outline:0; background:transparent; font:inherit; color:var(--ink); padding:6px 0; }
+  #send { width:38px; height:38px; flex:none; border:0; border-radius:50%; background:var(--accent); color:var(--accent-ink); font-size:18px; font-weight:700; }
+  #send:disabled { opacity:.4; cursor:default; }
+
+  /* drawer */
+  #scrim { position:fixed; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .2s; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(400px, 100%); background:var(--bg); border-left:1px solid var(--line); box-shadow:var(--shadow); transform:translateX(100%); transition:transform .22s; overflow-y:auto; padding:0 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .open #scrim { opacity:1; pointer-events:auto; } .open #drawer { transform:none; }
+  .dhead { display:flex; align-items:center; justify-content:space-between; padding:14px 0; position:sticky; top:0; background:var(--bg); }
+  .dhead h2 { margin:0; font-size:18px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
+  .seg { display:inline-flex; padding:3px; margin-bottom:6px; background:var(--soft); border-radius:10px; }
+  .pc { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin-bottom:10px; }
+  .pc.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .pc .h { display:flex; align-items:center; gap:8px; font-weight:700; }
+  .pc .sub { color:var(--mute); font-size:13px; margin-top:2px; }
+  .pc .st { display:flex; align-items:center; gap:8px; font-size:13.5px; margin-top:6px; }
+  .pc .acts { display:flex; gap:6px; margin-top:10px; }
+  .pc a { color:var(--accent); font-size:13.5px; }
+  .acct { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:14px; color:var(--mute); }
+  .acct .row { margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div id="login" class="off">
+  <div class="card">
+    <div class="brand"><span class="logo">⇄</span>AI Relay</div>
+    <h1>When one free AI runs out, the next picks up</h1>
+    <p>AI Relay passes your chat to the next free AI when one hits its limit, so you keep going. Your personal key brings your setup back on any device.</p>
+    <div id="made" class="off">
+      <code class="key" id="newkey"></code>
+      <div class="row" style="margin-bottom:12px"><button id="copy2" type="button" class="btn ghost">Copy key</button><button id="go" type="button" class="btn">I saved it, continue</button></div>
+      <p>Save this now, for example in a password manager. It cannot be recovered.</p>
+    </div>
+    <div id="choose">
+      <button id="create" type="button" class="btn">Get started</button>
+      <div class="or">or sign in with your key</div>
+      <div class="row"><input id="have" type="password" placeholder="Paste your personal key" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key"><button id="enter" type="button" class="btn ghost">Sign in</button></div>
+    </div>
+    <p id="lerr" class="err" role="alert"></p>
+  </div>
+</div>
+
+<div id="app" class="off">
+  <header class="top">
+    <div class="brand"><span class="logo">⇄</span><span>AI Relay</span></div>
+    <div class="actions">
+      <button id="newchat" type="button" class="btn ghost small">New chat</button>
+      <button id="pill" type="button" class="pill" aria-label="Open AI providers"><span class="dot" id="pdot"></span><span id="ptxt">Loading</span></button>
+    </div>
+  </header>
+  <main id="log" aria-live="polite"><div class="col" id="col">
+    <div id="empty">
+      <h2>What can I help with?</h2>
+      <p id="emptysub">Ask anything. AI Relay hands your chat to whichever free AI is available.</p>
+      <div class="chips" id="chips"></div>
+    </div>
+  </div></main>
+  <form id="f" class="composer">
+    <div class="box">
+      <textarea id="q" rows="1" placeholder="Message" aria-label="Message" required></textarea>
+      <button id="send" aria-label="Send">↑</button>
+    </div>
+  </form>
+  <div id="wrap">
+    <div id="scrim"></div>
+    <aside id="drawer" aria-label="AI providers">
+      <div class="dhead"><h2>AI providers</h2><button id="close" type="button" class="btn ghost small">Done</button></div>
+      <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
+      <p class="hint" id="autohint">Auto-switch uses the first provider with free usage left. Pick one below to pin it.</p>
+      <div id="cards"></div>
+      <div class="acct" id="acct"></div>
+    </aside>
+  </div>
+</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Relay</title>
+<style>
+  :root { --bg:#fafaf8; --surface:#fff; --soft:#f0f1ee; --ink:#1c2420; --mute:#6b7771; --line:#e2e5e0; --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warn:#d38a2b; --off:#b3bbb6; --radius:14px; --shadow:0 8px 30px rgba(20,30,25,.12); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121513; --surface:#1a1e1c; --soft:#232826; --ink:#e8eeea; --mute:#8f9c95; --line:#2b312e; --accent:#6ea8ff; --accent-ink:#06130f; --shadow:0 8px 30px rgba(0,0,0,.5); } }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; cursor:pointer; color:inherit; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .off { display:none !important; }
+  .btn { padding:9px 16px; font-weight:600; font-size:14px; color:var(--accent-ink); background:var(--accent); border:0; border-radius:10px; }
+  .btn.ghost { color:var(--ink); background:transparent; border:1px solid var(--line); }
+  .btn.small { padding:5px 11px; font-size:13px; }
+  .btn.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--off); flex:none; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); }
+
+  /* login */
+  #login { min-height:100%; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { width:100%; max-width:420px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
+  .logo { width:28px; height:28px; border-radius:9px; background:linear-gradient(135deg, #2563eb, #38bdf8); color:#fff; display:grid; place-items:center; font-size:16px; font-weight:700; line-height:1; }
+  .card h1 { font-size:24px; line-height:1.25; margin:18px 0 8px; }
+  .card p { color:var(--mute); margin:0 0 16px; font-size:15px; }
+  .card > .btn { width:100%; padding:12px; font-size:15px; }
+  .card .row .btn { flex:none; padding:10px 16px; }
+  .or { text-align:center; color:var(--mute); font-size:13px; margin:14px 0; }
+  .row { display:flex; gap:8px; }
+  input[type=password], input[type=text] { flex:1; min-width:0; padding:10px 12px; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+  code.key { display:block; padding:12px; margin:0 0 12px; background:var(--soft); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
+  .card .err { color:var(--warn); font-size:14px; min-height:20px; margin:10px 0 0; }
+
+  /* app */
+  #app { height:100%; display:flex; flex-direction:column; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface); }
+  .top .actions { display:flex; gap:8px; align-items:center; }
+  .pill { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:13px; font-weight:600; background:var(--soft); border:1px solid var(--line); border-radius:99px; max-width:55vw; }
+  .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #log { flex:1; overflow-y:auto; padding:24px 16px 8px; }
+  .col { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+  #empty { text-align:center; padding:8vh 0 0; }
+  #empty h2 { font-size:26px; margin:0 0 6px; } #empty p { color:var(--mute); margin:0 0 20px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  .chip { padding:8px 14px; font-size:14px; background:var(--surface); border:1px solid var(--line); border-radius:99px; }
+  .chip:hover { border-color:var(--accent); }
+  .msg { max-width:88%; white-space:pre-wrap; word-wrap:break-word; }
+  .me { align-self:flex-end; padding:10px 15px; background:var(--accent); color:var(--accent-ink); border-radius:18px 18px 4px 18px; }
+  .bot { align-self:flex-start; max-width:100%; }
+  .bot .body { padding:2px 0; }
+  .bot code { padding:1px 5px; background:var(--soft); border-radius:5px; font:13.5px ui-monospace, Menlo, monospace; }
+  .bot pre { margin:8px 0; padding:12px; overflow-x:auto; background:var(--soft); border-radius:10px; white-space:pre; }
+  .bot pre code { padding:0; background:none; }
+  .meta { margin-top:4px; font-size:12px; color:var(--mute); }
+  .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; }
+  .thinking { color:var(--mute); font-size:14px; }
+  .composer { padding:10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .box { max-width:720px; margin:0 auto; display:flex; align-items:flex-end; gap:8px; padding:8px 8px 8px 16px; background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); }
+  .box:focus-within { border-color:var(--accent); }
+  textarea { flex:1; max-height:160px; resize:none; border:0; outline:0; background:transparent; font:inherit; color:var(--ink); padding:6px 0; }
+  #send { width:38px; height:38px; flex:none; border:0; border-radius:50%; background:var(--accent); color:var(--accent-ink); font-size:18px; font-weight:700; }
+  #send:disabled { opacity:.4; cursor:default; }
+
+  /* drawer */
+  #scrim { position:fixed; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .2s; }
+  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(400px, 100%); background:var(--bg); border-left:1px solid var(--line); box-shadow:var(--shadow); transform:translateX(100%); transition:transform .22s; overflow-y:auto; padding:0 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .open #scrim { opacity:1; pointer-events:auto; } .open #drawer { transform:none; }
+  .dhead { display:flex; align-items:center; justify-content:space-between; padding:14px 0; position:sticky; top:0; background:var(--bg); }
+  .dhead h2 { margin:0; font-size:18px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
+  .seg { display:inline-flex; padding:3px; margin-bottom:6px; background:var(--soft); border-radius:10px; }
+  .pc { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin-bottom:10px; }
+  .pc.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .pc .h { display:flex; align-items:center; gap:8px; font-weight:700; }
+  .pc .sub { color:var(--mute); font-size:13px; margin-top:2px; }
+  .pc .st { display:flex; align-items:center; gap:8px; font-size:13.5px; margin-top:6px; }
+  .pc .acts { display:flex; gap:6px; margin-top:10px; }
+  .pc a { color:var(--accent); font-size:13.5px; }
+  .acct { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:14px; color:var(--mute); }
+  .acct .row { margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div id="login" class="off">
+  <div class="card">
+    <div class="brand"><span class="logo">⇄</span>AI Relay</div>
+    <h1>When one free AI runs out, the next picks up</h1>
+    <p>AI Relay passes your chat to the next free AI when one hits its limit, so you keep going. Your personal key brings your setup back on any device.</p>
+    <div id="made" class="off">
+      <code class="key" id="newkey"></code>
+      <div class="row" style="margin-bottom:12px"><button id="copy2" type="button" class="btn ghost">Copy key</button><button id="go" type="button" class="btn">I saved it, continue</button></div>
+      <p>Save this now, for example in a password manager. It cannot be recovered.</p>
+    </div>
+    <div id="choose">
+      <button id="create" type="button" class="btn">Get started</button>
+      <div class="or">or sign in with your key</div>
+      <div class="row"><input id="have" type="password" placeholder="Paste your personal key" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key"><button id="enter" type="button" class="btn ghost">Sign in</button></div>
+    </div>
+    <p id="lerr" class="err" role="alert"></p>
+  </div>
+</div>
+
+<div id="app" class="off">
+  <header class="top">
+    <div class="brand"><span class="logo">⇄</span><span>AI Relay</span></div>
+    <div class="actions">
+      <button id="newchat" type="button" class="btn ghost small">New chat</button>
+      <button id="pill" type="button" class="pill" aria-label="Open AI providers"><span class="dot" id="pdot"></span><span id="ptxt">Loading</span></button>
+    </div>
+  </header>
+  <main id="log" aria-live="polite"><div class="col" id="col">
+    <div id="empty">
+      <h2>What can I help with?</h2>
+      <p id="emptysub">Ask anything. AI Relay hands your chat to whichever free AI is available.</p>
+      <div class="chips" id="chips"></div>
+    </div>
+  </div></main>
+  <form id="f" class="composer">
+    <div class="box">
+      <textarea id="q" rows="1" placeholder="Message" aria-label="Message" required></textarea>
+      <button id="send" aria-label="Send">↑</button>
+    </div>
+  </form>
+  <div id="wrap">
+    <div id="scrim"></div>
+    <aside id="drawer" aria-label="AI providers">
+      <div class="dhead"><h2>AI providers</h2><button id="close" type="button" class="btn ghost small">Done</button></div>
+      <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
+      <p class="hint" id="autohint">Auto-switch uses the first provider with free usage left. Pick one below to pin it.</p>
+      <div id="cards"></div>
+      <div class="acct" id="acct"></div>
+    </aside>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const log = $("log"), col = $("col"), q = $("q"), send = $("send"), wrap = $("wrap");
+const nf = n => n.toLocaleString();
+const getKey = () => localStorage.getItem("freeai-key");
+const history = [];
+let st = null, busy = false;
+
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
+  return r.json();
+}
+const show = on => { $("login").classList.toggle("off", on); $("app").classList.toggle("off", !on); };
+const drawer = open => wrap.classList.toggle("open", open);
+function signOut() { localStorage.removeItem("freeai-key"); st = null; newChat(); drawer(false); show(false); }
+async function refresh() { if (!getKey()) return; try { st = await api("/api/status"); render(); } catch {} }
+
+// --- tiny safe formatter: code blocks, inline code, bold, bullets ---
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : esc(s)
+  .replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/^#{1,6}\s+(.+)$/gm, "<strong>$1</strong>").replace(/^\s*[-*]\s+/gm, "• ")).join("");
+
+function render() {
+  if (!st) return;
+  const live = st.providers.filter(p => p.hasKey), name = st.current || st.nextUp;
+  const cur = live.find(p => p.name === name);
+  $("ptxt").textContent = !live.length ? "Add a free key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
+  $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
+  $("emptysub").textContent = live.length ? "Ask anything. AI Relay hands your chat to whichever free AI is available." : "Add at least one free AI key to begin. It takes about a minute.";
+  $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
+  $("cards").innerHTML = st.providers.map(p => {
+    if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}</div><div class="sub">${p.model}</div>
+      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">Get a free key</a></div>
+      <div class="row" style="margin-top:8px"><input type="password" placeholder="Paste key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div></div>`;
+    const on = p.name === st.selected, rest = p.coolingDown;
+    const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
+    const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
+    return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}</div><div class="sub">${p.model}</div>
+      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>
+      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button><button class="btn small ghost" data-del="${p.name}">Remove key</button></div></div>`;
+  }).join("");
+  $("acct").innerHTML = `Signed in with key <b>${getKey().slice(0, 7)}…</b><div class="row"><button class="btn small ghost" data-act="copy">Copy key</button><button class="btn small ghost" data-act="out">Sign out</button></div>`;
+}
+
+$("drawer").addEventListener("click", async e => {
+  const t = e.target.dataset;
+  try {
+    if (t.act === "copy") { await navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; }
+    else if (t.act === "out") signOut();
+    else if (t.pin) { st = await api("/api/select", { provider: t.pin }); render(); }
+    else if (t.del) { st = await api("/api/key", { provider: t.del, key: "" }); render(); }
+    else if (t.save) { const v = document.querySelector(`[data-in="${t.save}"]`).value.trim(); if (v) { st = await api("/api/key", { provider: t.save, key: v }); render(); } }
+  } catch {}
+});
+$("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
+$("pill").onclick = () => drawer(true);
+$("close").onclick = $("scrim").onclick = () => drawer(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape") drawer(false); });
+
+// --- login ---
+const notServed = () => !/^https?:$/.test(location.protocol);
+const serverMsg = "AI Relay can't reach its server from here. Open it at your AI Relay web address, or run it locally and open http://localhost:3000.";
+$("create").onclick = async () => {
+  $("lerr").textContent = "";
+  if (notServed()) { $("lerr").textContent = serverMsg; return; }
+  try {
+    const r = await (await fetch("/api/signup", { method: "POST" })).json();
+    if (!r.token) throw new Error(r.error || "Could not create a key");
+    localStorage.setItem("freeai-key", r.token);
+    $("newkey").textContent = r.token; $("choose").classList.add("off"); $("made").classList.remove("off");
+  } catch (e) { $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message; }
+};
+$("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
+$("go").onclick = async () => { show(true); await refresh(); if (!st.providers.some(p => p.hasKey)) drawer(true); };
+$("enter").onclick = async () => {
+  const k = $("have").value.trim();
+  $("lerr").textContent = "";
+  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Get started to make one."; return; }
+  if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
+  if (notServed()) { $("lerr").textContent = serverMsg; return; }
+  localStorage.setItem("freeai-key", k);
+  try { st = await api("/api/status"); show(true); render(); }
+  catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
+};
+
+// --- chat ---
+const prompts = ["Explain something in simple words", "Help me write a polite email", "Give me a quick dinner idea", "Quiz me on world capitals"];
+$("chips").innerHTML = prompts.map(p => `<button type="button" class="chip">${p}</button>`).join("");
+$("chips").onclick = e => { if (e.target.classList.contains("chip")) { q.value = e.target.textContent; $("f").requestSubmit(); } };
+function newChat() { history.length = 0; [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); }); $("empty").classList.remove("off"); }
+$("newchat").onclick = newChat;
+
+function add(cls, text, meta) {
+  $("empty").classList.add("off");
+  const d = document.createElement("div"); d.className = "msg " + cls;
+  if (cls === "bot") { d.innerHTML = `<div class="body">${fmt(text)}</div>` + (meta ? `<div class="meta">${esc(meta)}</div>` : ""); }
+  else d.textContent = text;
+  col.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
+q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("f").requestSubmit(); } });
+$("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = q.value.trim(); if (!text || busy) return;
+  busy = true; send.disabled = true; q.value = ""; q.style.height = "auto";
+  history.push({ role: "user", content: text }); add("me", text);
+  const wait = add("thinking", "Thinking…");
+  try {
+    const d = await api("/api/chat", { messages: history });
+    if (d.error) throw new Error(d.error);
+    history.push({ role: "assistant", content: d.reply }); wait.remove();
+    add("bot", d.reply, d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : ""));
+  } catch (err) { history.pop(); wait.remove(); add("note", err.message + " Open the provider list at the top to add keys or check wait times."); }
+  busy = false; send.disabled = false; refresh(); q.focus();
+});
+
+if (getKey()) { show(true); refresh(); } else show(false);
+setInterval(() => { if (!document.activeElement || document.activeElement.tagName !== "INPUT") refresh(); }, 5000);
+</script>
+</body>
+</html>
+
