@@ -1,28 +1,45 @@
-// AI Relay v3 — personal access keys. Each key = its own saved account:
-// provider keys, usage, wait times and pinned choice, remembered on any device.
-// Run: node server.js   (Node 18+, nothing to install)
+// AI Relay — personal keys, plus shared free keys with fair-use limits.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-// On a host with a persistent disk, set DATA_DIR to the disk's mount path (e.g. /var/data).
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
 
+// Fair-use limits for people using the shared keys (people with their own keys aren't capped).
+const PER_USER_HOURLY = 20; // messages per person per hour
+const PER_USER_DAILY = 70;  // messages per person per day
+
 // Free-tier models change often: edit `model` here if a provider retires one.
+// `daily` = messages per day allowed on YOUR shared key.
 const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys" },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b", keyUrl: "https://cloud.cerebras.ai" },
-  Gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", model: "gemini-2.5-flash", keyUrl: "https://aistudio.google.com/apikey" },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "meta-llama/llama-3.3-70b-instruct:free", keyUrl: "https://openrouter.ai/keys" },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai" },
+  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys", daily: 900 },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b", keyUrl: "https://cloud.cerebras.ai", daily: 500 },
+  Gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", model: "gemini-2.5-flash", keyUrl: "https://aistudio.google.com/apikey", daily: 200 },
+  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "meta-llama/llama-3.3-70b-instruct:free", keyUrl: "https://openrouter.ai/keys", daily: 45 },
+  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai", daily: 200 },
 };
+
+// Shared keys come from Render's environment, e.g. GROQ_API_KEY
+const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
+const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
+
+// Shared daily counters, per provider (reset at midnight UTC)
+let shared = { day: "", n: {} };
+const today = () => new Date().toISOString().slice(0, 10);
+function resetIfNewDay() { if (shared.day !== today()) shared = { day: today(), n: {} }; }
+function sharedLeft(name) {
+  resetIfNewDay();
+  return dailyCap(name) - (shared.n[name] || 0);
+}
+// True if at least one shared provider still has messages left today
+const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
 
 // --- per-user storage: one encrypted file per access key (the key itself is never stored) ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
 const fileOf = (t) => path.join(DIR, sha("id:" + t).toString("hex") + ".bin");
-const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null });
+const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, hour: { start: 0, n: 0 }, day: { day: "", n: 0 } });
 
 function loadUser(t) {
   try {
@@ -43,7 +60,7 @@ function saveUser(t, u) {
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
 const resting = (u, n) => (u.until[n] || 0) > Date.now();
 function ordered(u) {
-  const have = Object.keys(PROVIDERS).filter((n) => u.keys[n]);
+  const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n));
   return have.includes(u.selected) ? [u.selected, ...have.filter((n) => n !== u.selected)] : have;
 }
 function cooldownFor(res, text) {
@@ -56,12 +73,15 @@ async function ask(u, messages) {
   const tried = [];
   for (const name of ordered(u)) {
     if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
+    const usingShared = !u.keys[name];
+    if (usingShared && sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
     const p = PROVIDERS[name], s = usage(u, name);
+    const key = u.keys[name] || envKey(name);
     let reason;
     try {
       const res = await fetch(p.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${u.keys[name]}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({ model: p.model, messages }),
         signal: AbortSignal.timeout(45000),
       });
@@ -69,10 +89,11 @@ async function ask(u, messages) {
       if (res.ok) {
         const data = JSON.parse(text), reply = data.choices?.[0]?.message?.content;
         if (reply) {
+          if (usingShared) shared.n[name] = (shared.n[name] || 0) + 1;
           s.ok++; s.tokens += data.usage?.total_tokens || 0; u.current = name; u.reason[name] = "";
           const rl = res.headers.get("x-ratelimit-remaining-requests");
           if (rl !== null) s.left = Number(rl);
-          return { reply, provider: name, model: p.model, fellBack: u.selected !== "auto" && u.selected !== name };
+          return { reply, provider: name, model: p.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
         }
         reason = "empty reply"; u.until[name] = Date.now() + 30000;
       } else if (res.status === 401) { reason = "key rejected"; u.until[name] = Date.now() + 864e5; }
@@ -81,19 +102,25 @@ async function ask(u, messages) {
     } catch (e) { reason = e.message; u.until[name] = Date.now() + 30000; }
     s.fail++; u.reason[name] = reason; tried.push(`${name}: ${reason}`);
   }
-  const err = new Error(ordered(u).length ? "All your providers are resting right now." : "Add at least one free key first.");
+  const err = new Error(ordered(u).length ? "All providers are resting right now." : "Add at least one free key first.");
   err.tried = tried; throw err;
 }
 
 function status(u) {
   const next = ordered(u).find((n) => !resting(u, n));
+  const h = u.hour || { start: 0, n: 0 };
+  const d = u.day || { day: "", n: 0 };
+  const hourUsed = Date.now() - h.start > 3600000 ? 0 : h.n;
+  const dayUsed = d.day === today() ? d.n : 0;
   return {
     selected: u.selected, current: u.current, nextUp: next || null,
+    limits: { perHour: PER_USER_HOURLY, usedThisHour: hourUsed, perDay: PER_USER_DAILY, usedToday: dayUsed },
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name);
-      return { name, model: p.model, keyUrl: p.keyUrl, hasKey: !!u.keys[name], coolingDown: resting(u, name),
+      return { name, model: p.model, keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), coolingDown: resting(u, name),
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
-        requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left }; // provider keys are never sent back
+        requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
+        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
     }),
   };
 }
@@ -132,12 +159,33 @@ http.createServer(async (req, res) => {
     saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/select") {
-    if (body.provider === "auto" || u.keys[body.provider]) u.selected = body.provider;
+    if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
     saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/chat" && Array.isArray(body.messages)) {
-    try { const out = await ask(u, body.messages); saveUser(token, u); return send(res, 200, out); }
-    catch (e) { saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
+    const hasOwn = Object.values(u.keys).some(Boolean);
+    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared free limit is used up on every provider. It resets at midnight UTC. You can also add your own free key." });
+
+    const h = (u.hour ||= { start: 0, n: 0 });
+    if (Date.now() - h.start > 3600000) { h.start = Date.now(); h.n = 0; }
+    if (!hasOwn && h.n >= PER_USER_HOURLY) {
+      const mins = Math.ceil((h.start + 3600000 - Date.now()) / 60000);
+      return send(res, 429, { error: `You've used your ${PER_USER_HOURLY} messages for this hour. Try again in ${mins} min, or add your own free key.` });
+    }
+
+    const d = (u.day ||= { day: today(), n: 0 });
+    if (d.day !== today()) { d.day = today(); d.n = 0; }
+    if (!hasOwn && d.n >= PER_USER_DAILY) {
+      return send(res, 429, { error: `You've used your ${PER_USER_DAILY} free messages for today. They reset at midnight UTC, or add your own free key.` });
+    }
+
+    h.n++;
+    try {
+      const out = await ask(u, body.messages);
+      if (!hasOwn) d.n++;
+      saveUser(token, u);
+      return send(res, 200, out);
+    } catch (e) { saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
   }
   send(res, 404, { error: "not found" });
 }).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
