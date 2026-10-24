@@ -111,6 +111,7 @@
   .pc .sub { color:var(--mute); font-size:13px; margin-top:2px; }
   .pc .st { display:flex; align-items:center; gap:8px; font-size:13.5px; margin-top:6px; }
   .pc .acts { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .pc .tres { margin-top:8px; font-size:13px; padding:8px 10px; border-radius:10px; background:var(--panel); word-break:break-word; }
   .pc a { color:#8ab4ff; font-size:13.5px; }
   .dhead { display:flex; align-items:center; justify-content:space-between; padding:4px 0 12px; }
   .dhead h2 { margin:0; font-size:18px; }
@@ -129,11 +130,9 @@
   .sheetbody .danger { color:#f87171; }
   .why { color:var(--warn); font-size:14px; line-height:1.45; padding:10px 8px 4px; }
   .usebody { max-height:60vh; overflow-y:auto; padding:4px 2px; }
-  .ustat { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); font-size:15px; }
-  .ustat span { color:var(--mute); }
   .urow { padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
   .urow b { display:block; font-size:15px; }
-  .urow span { color:var(--mute); }
+  .urow span { color:var(--mute); display:block; }
   .sheettitle { margin:6px 2px 4px; font-size:18px; font-weight:700; }
 </style>
 </head>
@@ -212,7 +211,7 @@
   <aside id="drawer" aria-label="AI providers">
     <div class="dhead"><h2>AI providers</h2><button id="close" class="btn ghost small" type="button">Done</button></div>
     <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
-    <p class="hint">Auto-switch uses the first provider with free usage left. Pick one below to pin it.</p>
+    <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
     <div id="cards" style="overflow-y:auto;flex:1"></div>
   </aside>
 
@@ -258,8 +257,9 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const textOf = c => Array.isArray(c) ? ((c.find(p => p.type === "text") || {}).text || "") : String(c ?? "");
 const imgOf = c => Array.isArray(c) ? (((c.find(p => p.type === "image_url") || {}).image_url) || {}).url || null : null;
-const VISION = ["Gemini", "Mistral"]; // the only providers that can read photos
+const VISION = ["Mistral"]; // the only free AI here that can read photos
 let history = [], chatId = newId(), st = null, busy = false, editing = null, pendingImage = null, openedAt = 0;
+const testResult = {}; // provider name -> result text from the Test button
 
 async function api(path, body) {
   const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
@@ -285,10 +285,9 @@ const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<
 // --- photo support: says exactly why a photo can't be sent right now ---
 function photoStatus() {
   if (!st) return { ok: false, why: "Still loading your providers. Try again in a second." };
-  const vis = st.providers.filter(p => VISION.includes(p.name));
-  const keyed = vis.filter(p => p.hasKey);
-  if (!keyed.length) return { ok: false, why: "Photos only work with Gemini or Mistral, because those are the only free AIs here that can read images. Groq, Cerebras, OpenRouter, NVIDIA and SambaNova can only read text. To fix it, tap AI providers below and add a free Gemini or Mistral key." };
-  if (keyed.every(p => p.coolingDown)) return { ok: false, why: "Gemini and Mistral are resting right now, so they can't read photos. They come back on their own in a few minutes. You can also add another key." };
+  const keyed = st.providers.filter(p => VISION.includes(p.name) && p.hasKey);
+  if (!keyed.length) return { ok: false, why: "Photos only work with Mistral right now, because it's the only free AI here that can read images. Groq, Cerebras, OpenRouter, NVIDIA and SambaNova can only read text. To fix it, tap AI providers below and add a free Mistral key." };
+  if (keyed.every(p => p.coolingDown)) return { ok: false, why: "Mistral is resting right now, so it can't read photos. It comes back on its own in a few minutes." };
   return { ok: true };
 }
 
@@ -308,11 +307,12 @@ function render() {
       <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">Get a free key</a></div>${keyBox}</div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
-    const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
+    const limit = p.own ? "your own key · no limit" : `${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today`;
     const shared = !p.own ? `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}` : "";
+    const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
     return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}</div><div class="sub">${p.model}</div>
-      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${shared}
-      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
+      <div class="st">${stTxt}</div><div class="sub">${limit}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors</div>${shared}${tr}
+      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use only this one"}</button><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
   }).join("");
 }
 
@@ -320,20 +320,28 @@ $("drawer").addEventListener("click", async e => {
   const t = e.target.dataset;
   try {
     if (t.pin) { st = await api("/api/select", { provider: t.pin }); render(); }
-    else if (t.del) { st = await api("/api/key", { provider: t.del, key: "" }); render(); }
-    else if (t.save) { const v = document.querySelector(`[data-in="${t.save}"]`).value.trim(); if (v) { st = await api("/api/key", { provider: t.save, key: v }); render(); } }
+    else if (t.test) {
+      testResult[t.test] = "Testing…"; render();
+      try {
+        const r = await api("/api/test", { provider: t.test });
+        testResult[t.test] = r.ok ? `Works. It replied "${r.reply}" using ${r.model}.` : "Not working: " + r.error;
+      } catch (err) { testResult[t.test] = "Not working: " + err.message; }
+      render();
+    }
+    else if (t.del) { st = await api("/api/key", { provider: t.del, key: "" }); delete testResult[t.del]; render(); }
+    else if (t.save) { const v = document.querySelector(`[data-in="${t.save}"]`).value.trim(); if (v) { st = await api("/api/key", { provider: t.save, key: v }); delete testResult[t.save]; render(); } }
   } catch {}
 });
 
-// --- usage ---
+// --- usage: each AI on its own ---
 function renderUsage() {
   if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
-  const L = st.limits, live = st.providers.filter(p => p.hasKey);
-  const rows = live.length ? live.map(p => `<div class="urow"><b>${p.name}</b><span>${nf(p.requests)} answered · ${nf(p.tokens)} tokens · ${p.errors} errors${p.own ? " · your key" : (p.sharedLeftToday !== null ? " · " + nf(p.sharedLeftToday) + " shared left today" : "")}</span></div>`).join("")
-    : `<p class="hint">No providers yet. Add a key in AI providers.</p>`;
-  $("usebody").innerHTML = `<div class="ustat"><span>This hour</span><b>${L.usedThisHour} / ${L.perHour}</b></div>
-    <div class="ustat"><span>Today</span><b>${L.usedToday} / ${L.perDay}</b></div>
-    <p class="hint" style="margin:10px 0">These limits apply to shared keys. Messages sent with your own key aren't capped here.</p>${rows}`;
+  const live = st.providers.filter(p => p.hasKey);
+  const rows = live.length ? live.map(p => p.own
+    ? `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+    : `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+  ).join("") : `<p class="hint">No providers yet. Add a key in AI providers.</p>`;
+  $("usebody").innerHTML = `<p class="hint" style="margin:6px 0 10px">Each AI has its own limit on the shared keys. Switching to another AI gives you that AI's full allowance.</p>${rows}`;
 }
 async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
 
@@ -484,7 +492,7 @@ $("f").addEventListener("submit", async e => {
   try {
     const d = await api("/api/chat", { chatId, messages: history.map(m => ({ role: m.role, content: m.content })) });
     if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
-    const meta = d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : "");
+    const meta = d.provider + " · " + d.model;
     history.push({ role: "assistant", content: d.reply, meta }); wait.remove();
     toStart(add("bot", d.reply, meta, history.length - 1, true)); // start of the reply, not the end
     loadChats();
