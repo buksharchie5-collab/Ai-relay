@@ -18,18 +18,17 @@ const MAX_MESSAGES = 200;   // messages kept per chat
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
 const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
-// `model` = first model name to try. If it isn't available, the app checks the provider's list and tries
-// names from `known` (names that are known to exist), keeping only names that appear on the provider's list.
-// `daily` = messages per day allowed on the SHARED key (set in Render as NAME_API_KEY).
-//           Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
+// `model` = first model name to try. If the provider says it isn't available, the app tries the names in `known`
+// one at a time, then gives up. `daily` = messages per day on the SHARED key (set in Render as NAME_API_KEY).
+// Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
   Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
   Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: null, known: ["meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: "meta/llama-3.1-8b-instruct", known: ["meta/llama-3.1-70b-instruct", "meta/llama-3.3-70b-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
   Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", known: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
   OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "mistralai/mistral-large-4-0", known: ["google/gemma-3-27b-it:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: "@cf/meta/llama-3.1-8b-instruct", known: ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", known: ["@cf/meta/llama-3.1-8b-instruct-fast"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
 
 // AIs that can read photos. Photos are only sent to these.
@@ -143,12 +142,15 @@ async function listModels(name, key) {
   } catch { return null; }
 }
 
-// Pick a name from the provider's own list that is also on our known-good list.
-async function findWorkingModel(name, key, skip) {
-  const available = await listModels(name, key);
-  if (!available) return null;
+// Choose the next model name to try: a known name the provider lists first, otherwise the next known name directly.
+async function findNextModel(name, key, skip) {
   const p = PROVIDERS[name];
-  return (p.known || []).find((id) => available.has(id) && !skip.has(id)) || null;
+  const available = await listModels(name, key);
+  if (available) {
+    const listed = (p.known || []).find((id) => available.has(id) && !skip.has(id));
+    if (listed) return listed;
+  }
+  return (p.known || []).find((id) => !skip.has(id)) || null;
 }
 
 // --- failover logic, per user ---
@@ -259,20 +261,20 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try the saved or default model. If it isn't available, pick a name the provider confirms this key has.
+    // Try the saved or default model. If it isn't available, move to the next known name.
     const skip = new Set();
     let answered = null, last = null;
     let model = modelFor(name);
-    for (let step = 0; step < 3 && !answered; step++) {
+    for (let step = 0; step < 4 && !answered; step++) {
       if (!model) {
-        model = await findWorkingModel(name, key, skip);
+        model = await findNextModel(name, key, skip);
         if (!model) break;
       }
       skip.add(model);
       last = await callModel(name, key, model, messages);
       if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
       if (!last.modelError) break;
-      model = null; // try the next confirmed name
+      model = null;
     }
 
     if (answered) {
@@ -285,7 +287,7 @@ async function ask(u, messages, only, test) {
       return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
     }
 
-    const reason = last ? last.reason : "none of this AI's known models are on your key's list";
+    const reason = last ? last.reason : "none of this AI's known models worked for this key";
     s.fail++; u.reason[name] = reason;
     u.until[name] = Date.now() + (last ? last.cooldown : 60000);
     tried.push(`${name}: ${reason}`);
