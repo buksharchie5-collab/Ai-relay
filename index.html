@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI Relay</title>
 <style>
-  :root { --bg:#fafaf8; --surface:#fff; --soft:#f0f1ee; --ink:#1c2420; --mute:#6b7771; --line:#e2e5e0; --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warn:#d38a2b; --off:#b3bbb6; --radius:14px; --shadow:0 8px 30px rgba(20,30,25,.12); }
-  @media (prefers-color-scheme: dark) { :root { --bg:#121513; --surface:#1a1e1c; --soft:#232826; --ink:#e8eeea; --mute:#8f9c95; --line:#2b312e; --accent:#6ea8ff; --accent-ink:#06130f; --shadow:0 8px 30px rgba(0,0,0,.5); } }
+  :root { --bg:#ffffff; --surface:#fff; --soft:#f0f1ee; --ink:#1c2420; --mute:#6b7771; --line:#e2e5e0; --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warn:#d38a2b; --off:#b3bbb6; --radius:14px; --shadow:0 8px 30px rgba(20,30,25,.12); color-scheme:light; }
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
   body { background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
@@ -82,6 +81,9 @@
   .pc a { color:var(--accent); font-size:13.5px; }
   .acct { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:14px; color:var(--mute); }
   .acct .row { margin-top:8px; }
+  .setup { text-align:left; max-width:420px; margin:0 auto 18px; padding:16px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+  .setup ol { margin:8px 0 12px; padding-left:20px; color:var(--mute); font-size:14px; }
+  .setup li { margin:4px 0; }
 </style>
 </head>
 <body>
@@ -116,6 +118,15 @@
   <main id="log" aria-live="polite"><div class="col" id="col">
     <div id="empty">
       <h2>What can I help with?</h2>
+      <div class="setup off" id="setup">
+        <strong>Get more messages in 2 minutes</strong>
+        <ol>
+          <li>Open the provider list at the top right and tap <b>Get a free key</b> on any card.</li>
+          <li>Sign up, copy the key, paste it into the box and tap <b>Save</b>.</li>
+          <li>Add more providers for more messages. Your own keys have no daily cap from us.</li>
+        </ol>
+        <button type="button" class="btn small" id="openSetup">Set up my keys</button>
+      </div>
       <p id="emptysub">Ask anything. AI Relay hands your chat to whichever free AI is available.</p>
       <div class="chips" id="chips"></div>
     </div>
@@ -137,7 +148,6 @@
     </aside>
   </div>
 </div>
-
 <script>
 const $ = id => document.getElementById(id);
 const log = $("log"), col = $("col"), q = $("q"), send = $("send"), wrap = $("wrap");
@@ -169,17 +179,19 @@ function render() {
   $("ptxt").textContent = !live.length ? "Add a free key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
   $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
   $("emptysub").textContent = live.length ? "Ask anything. AI Relay hands your chat to whichever free AI is available." : "Add at least one free AI key to begin. It takes about a minute.";
+  $("setup").classList.toggle("off", st.providers.some(p => p.own));
   $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
   $("cards").innerHTML = st.providers.map(p => {
+    const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div>`;
     if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}</div><div class="sub">${p.model}</div>
-      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">Get a free key</a></div>
-      <div class="row" style="margin-top:8px"><input type="password" placeholder="Paste key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div></div>`;
+      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">Get a free key</a></div>${keyBox}</div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
     const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
+    const shared = !p.own ? `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}` : "";
     return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}</div><div class="sub">${p.model}</div>
-      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>
-      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button><button class="btn small ghost" data-del="${p.name}">Remove key</button></div></div>`;
+      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${shared}
+      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
   }).join("");
   $("acct").innerHTML = `Signed in with key <b>${getKey().slice(0, 7)}…</b><div class="row"><button class="btn small ghost" data-act="copy">Copy key</button><button class="btn small ghost" data-act="out">Sign out</button></div>`;
 }
@@ -196,6 +208,7 @@ $("drawer").addEventListener("click", async e => {
 });
 $("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
 $("pill").onclick = () => drawer(true);
+$("openSetup").onclick = () => drawer(true);
 $("close").onclick = $("scrim").onclick = () => drawer(false);
 document.addEventListener("keydown", e => { if (e.key === "Escape") drawer(false); });
 
@@ -213,7 +226,7 @@ $("create").onclick = async () => {
   } catch (e) { $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message; }
 };
 $("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
-$("go").onclick = async () => { show(true); await refresh(); if (!st.providers.some(p => p.hasKey)) drawer(true); };
+$("go").onclick = async () => { show(true); await refresh(); if (!st.providers.some(p => p.own)) drawer(false); };
 $("enter").onclick = async () => {
   const k = $("have").value.trim();
   $("lerr").textContent = "";
@@ -261,4 +274,3 @@ setInterval(() => { if (!document.activeElement || document.activeElement.tagNam
 </script>
 </body>
 </html>
-
