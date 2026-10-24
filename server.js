@@ -18,17 +18,17 @@ const MAX_MESSAGES = 200;   // messages kept per chat
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
 const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
-// `model` = first model name to try. If the provider says it isn't available, the app tries the names in `known`
-// one at a time, then gives up. `daily` = messages per day on the SHARED key (set in Render as NAME_API_KEY).
-// Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
+// `model` = first model name to try. If it isn't available, the app tries the names in `known`, then, if `lookup`
+// is true, the text models the provider lists for your key. `daily` = messages per day on the SHARED key
+// (set in Render as NAME_API_KEY). Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0.
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "openai/gpt-oss-20b"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: "nvidia/nemotron-3.5-super-vl-120b-a12b", known: [], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", known: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "mistralai/mistral-large-4-0", known: ["google/gemma-3-27b-it:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: "@cf/openai/gpt-oss-120b", known: ["@cf/deepseek-ai/deepseek-v4-pro-0813", "@cf/openai/gpt-oss-20b"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "openai/gpt-oss-20b"], lookup: false, keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], lookup: false, keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: "nvidia/nemotron-3.5-super-vl-120b-a12b", known: [], lookup: false, keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", known: ["mistral-medium-latest", "open-mistral-nemo"], lookup: false, keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
+  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "mistralai/mistral-large-4-0", known: ["google/gemma-3-27b-it:free"], lookup: false, keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search?per_page=100`, model: "@cf/openai/gpt-oss-120b", known: ["@cf/deepseek-ai/deepseek-v4-pro-0813"], lookup: true, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
 
 // AIs that can read photos. Photos are only sent to these.
@@ -130,7 +130,10 @@ const headersFor = (key) => ({ "Content-Type": "application/json", Authorization
 const isModelError = (status, text) =>
   status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug|isn't available|not available|decommissioned/i.test(text));
 
-// Ask the provider which models this key can use. Returns a Set of names, or null if the list can't be read.
+// Names that are never chat models.
+const NOT_CHAT = /embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|ocr|\br1\b|distill|reward|prompt|code|vl\b|-vl|asr|stt|clef|clairic|moondream|flux|stable|bge|whisper|resnet|aura|melotts|sqlcoder|uform/i;
+
+// Ask the provider which models this key can use. Returns the list of names (may be empty), or null if unreadable.
 async function listModels(name, key) {
   const p = PROVIDERS[name];
   try {
@@ -138,17 +141,34 @@ async function listModels(name, key) {
     if (!res.ok) return null;
     const j = await res.json();
     const raw = j.data || j.models || j.result || [];
-    return new Set(raw.map((m) => String(m.id || m.name || m.model || "").replace(/^models\//, "")).filter(Boolean));
+    const out = [];
+    for (const m of raw) {
+      const id = String(m.id || m.name || m.model || "").replace(/^models\//, "");
+      if (!id) continue;
+      const task = typeof m.task === "string" ? m.task : m.task?.name;
+      if (task && !/text generation/i.test(task)) continue;
+      if (NOT_CHAT.test(id)) continue;
+      out.push(id);
+    }
+    return out;
   } catch { return null; }
 }
 
-// Choose the next model name to try: a known name the provider lists first, otherwise the next known name directly.
+// Choose the next model name to try.
+// 1. Known names that the provider lists for this key.
+// 2. For AIs with lookup on, any text model the provider lists for this key.
+// 3. The next known name, even if it isn't listed.
 async function findNextModel(name, key, skip) {
   const p = PROVIDERS[name];
   const available = await listModels(name, key);
   if (available) {
-    const listed = (p.known || []).find((id) => available.has(id) && !skip.has(id));
-    if (listed) return listed;
+    const set = new Set(available);
+    const listedKnown = (p.known || []).find((id) => set.has(id) && !skip.has(id));
+    if (listedKnown) return listedKnown;
+    if (p.lookup) {
+      const listedAny = available.find((id) => !skip.has(id));
+      if (listedAny) return listedAny;
+    }
   }
   return (p.known || []).find((id) => !skip.has(id)) || null;
 }
@@ -261,11 +281,11 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try the saved or default model. If it isn't available, move to the next known name.
+    // Try the saved or default model. If it isn't available, move to the next name.
     const skip = new Set();
     let answered = null, last = null;
     let model = modelFor(name);
-    for (let step = 0; step < 4 && !answered; step++) {
+    for (let step = 0; step < 8 && !answered; step++) {
       if (!model) {
         model = await findNextModel(name, key, skip);
         if (!model) break;
@@ -287,7 +307,7 @@ async function ask(u, messages, only, test) {
       return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
     }
 
-    const reason = last ? last.reason : "none of this AI's known models worked for this key";
+    const reason = last ? last.reason : "none of this AI's models worked for this key";
     s.fail++; u.reason[name] = reason;
     u.until[name] = Date.now() + (last ? last.cooldown : 60000);
     tried.push(`${name}: ${reason}`);
