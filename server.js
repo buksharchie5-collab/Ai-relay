@@ -18,31 +18,19 @@ const MAX_MESSAGES = 200;   // messages kept per chat
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
 const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
-// `model` = first model name to try. If it isn't available for your key, the app asks the provider
-// for the models your key CAN use (`listUrl`) and picks a chat model from that list.
+// `model` = first model name to try. If it isn't available, the app checks the provider's list and tries
+// names from `known` (names that are known to exist), keeping only names that appear on the provider's list.
 // `daily` = messages per day allowed on the SHARED key (set in Render as NAME_API_KEY).
 //           Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: null, keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "google/gemma-3-27b-it:free", keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: null, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: null, known: ["meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "mistralai/mistral-large-2-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", known: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
+  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "mistralai/mistral-large-4-0", known: ["google/gemma-3-27b-it:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: null, known: ["@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
-
-// Which model names are chat models, per AI. Used when picking from a provider's model list.
-const CHAT_PICK = {
-  Groq: /llama|gpt-oss|gemma|qwen|mixtral/i,
-  Cerebras: /llama|gpt-oss|qwen/i,
-  NVIDIA: /llama|gemma|mistral|mixtral/i,
-  Mistral: /mistral|ministral/i,
-  OpenRouter: /gemma|llama|mistral|qwen/i,
-  Cloudflare: /llama|gemma|mistral|qwen/i,
-};
-// Never pick these kinds of models for chat.
-const NOT_CHAT = /embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|ocr|\br1\b|distill|reward|prompt|code|vl\b|-vl|asr|tts|stt|reasoning|thinking/i;
 
 // AIs that can read photos. Photos are only sent to these.
 const VISION = ["Mistral"];
@@ -139,22 +127,28 @@ function errText(text) {
 
 const headersFor = (key) => ({ "Content-Type": "application/json", Authorization: `Bearer ${key}` });
 
-// Is this error about the model name (so asking for a working model may help)?
+// Is this error about the model name (so trying another name may help)?
 const isModelError = (status, text) =>
   status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug|isn't available|not available/i.test(text));
 
-// Ask the provider which models this key can use, and pick a chat model from that list.
-async function findWorkingModel(name, key) {
+// Ask the provider which models this key can use. Returns a Set of names, or null if the list can't be read.
+async function listModels(name, key) {
   const p = PROVIDERS[name];
   try {
     const res = await fetch(p.listUrl, { headers: headersFor(key), signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
     const j = await res.json();
     const raw = j.data || j.models || j.result || [];
-    const ids = raw.map((m) => String(m.id || m.name || m.model || "").replace(/^models\//, "")).filter(Boolean);
-    const pick = CHAT_PICK[name];
-    return ids.find((id) => pick && pick.test(id) && !NOT_CHAT.test(id)) || null;
+    return new Set(raw.map((m) => String(m.id || m.name || m.model || "").replace(/^models\//, "")).filter(Boolean));
   } catch { return null; }
+}
+
+// Pick a name from the provider's own list that is also on our known-good list.
+async function findWorkingModel(name, key, skip) {
+  const available = await listModels(name, key);
+  if (!available) return null;
+  const p = PROVIDERS[name];
+  return (p.known || []).find((id) => available.has(id) && !skip.has(id)) || null;
 }
 
 // --- failover logic, per user ---
@@ -265,22 +259,20 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try the saved or default model. If it isn't available, ask the provider for a model this key can use, then try that.
+    // Try the saved or default model. If it isn't available, pick a name the provider confirms this key has.
+    const skip = new Set();
     let answered = null, last = null;
     let model = modelFor(name);
-    let triedLookup = false;
     for (let step = 0; step < 3 && !answered; step++) {
       if (!model) {
-        triedLookup = true;
-        model = await findWorkingModel(name, key);
+        model = await findWorkingModel(name, key, skip);
         if (!model) break;
       }
+      skip.add(model);
       last = await callModel(name, key, model, messages);
       if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
-      if (!last.modelError || triedLookup) break;
-      model = await findWorkingModel(name, key);
-      triedLookup = true;
-      if (!model) break;
+      if (!last.modelError) break;
+      model = null; // try the next confirmed name
     }
 
     if (answered) {
@@ -293,7 +285,7 @@ async function ask(u, messages, only, test) {
       return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
     }
 
-    const reason = last ? last.reason : "no chat model found for this key";
+    const reason = last ? last.reason : "none of this AI's known models are on your key's list";
     s.fail++; u.reason[name] = reason;
     u.until[name] = Date.now() + (last ? last.cooldown : 60000);
     tried.push(`${name}: ${reason}`);
@@ -315,7 +307,7 @@ function status(u) {
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name), own = !!u.keys[name];
       const L = own ? null : limitOf(u, name);
-      return { name, model: modelFor(name) || "finding a model…", keyUrl: p.keyUrl, paid: !!p.paid, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
+      return { name, model: modelFor(name) || "checking your key…", keyUrl: p.keyUrl, paid: !!p.paid, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
         requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
         usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
