@@ -18,19 +18,31 @@ const MAX_MESSAGES = 200;   // messages kept per chat
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
 const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
-// `model` = first model name to try. `candidates` = other names to try if one isn't available for your key.
-// If a provider says "use this slug instead", the app tries that name automatically.
+// `model` = first model name to try. If it isn't available for your key, the app asks the provider
+// for the models your key CAN use (`listUrl`) and picks a chat model from that list.
 // `daily` = messages per day allowed on the SHARED key (set in Render as NAME_API_KEY).
 //           Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", candidates: ["llama-3.1-8b-instant", "openai/gpt-oss-20b", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "gpt-oss-120b", candidates: ["llama3.1-8b", "qwen-3-32b", "llama-3.3-70b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.1-8b-instruct", candidates: ["google/gemma-2-9b-it", "mistralai/mistral-7b-instruct-v0.3"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", candidates: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemma-3-27b-it:free", candidates: ["mistralai/mistral-small-3", "meta-llama/llama-3.3-70b-instruct:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", candidates: ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/google/gemma-3-12b-it"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: null, keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
+  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "google/gemma-3-27b-it:free", keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search`, model: null, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
+
+// Which model names are chat models, per AI. Used when picking from a provider's model list.
+const CHAT_PICK = {
+  Groq: /llama|gpt-oss|gemma|qwen|mixtral/i,
+  Cerebras: /llama|gpt-oss|qwen/i,
+  NVIDIA: /llama|gemma|mistral|mixtral/i,
+  Mistral: /mistral|ministral/i,
+  OpenRouter: /gemma|llama|mistral|qwen/i,
+  Cloudflare: /llama|gemma|mistral|qwen/i,
+};
+// Never pick these kinds of models for chat.
+const NOT_CHAT = /embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|ocr|\br1\b|distill|reward|prompt|code|vl\b|-vl|asr|tts|stt|reasoning|thinking/i;
 
 // AIs that can read photos. Photos are only sent to these.
 const VISION = ["Mistral"];
@@ -115,7 +127,7 @@ const listChats = (u) => Object.values(u.chats || {}).sort((a, b) => b.updated -
 
 // --- model names: remember the one that worked for each AI ---
 const models = {}; // AI name -> model name that last worked
-const modelsFor = (name) => [...new Set([models[name], PROVIDERS[name].model, ...(PROVIDERS[name].candidates || [])].filter(Boolean))].slice(0, 6);
+const modelFor = (name) => models[name] || PROVIDERS[name].model;
 
 function errText(text) {
   try {
@@ -127,9 +139,23 @@ function errText(text) {
 
 const headersFor = (key) => ({ "Content-Type": "application/json", Authorization: `Bearer ${key}` });
 
-// Is this error about the model name (so trying another name may help)?
+// Is this error about the model name (so asking for a working model may help)?
 const isModelError = (status, text) =>
-  status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug/i.test(text));
+  status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug|isn't available|not available/i.test(text));
+
+// Ask the provider which models this key can use, and pick a chat model from that list.
+async function findWorkingModel(name, key) {
+  const p = PROVIDERS[name];
+  try {
+    const res = await fetch(p.listUrl, { headers: headersFor(key), signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    const j = await res.json();
+    const raw = j.data || j.models || j.result || [];
+    const ids = raw.map((m) => String(m.id || m.name || m.model || "").replace(/^models\//, "")).filter(Boolean);
+    const pick = CHAT_PICK[name];
+    return ids.find((id) => pick && pick.test(id) && !NOT_CHAT.test(id)) || null;
+  } catch { return null; }
+}
 
 // --- failover logic, per user ---
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
@@ -173,7 +199,7 @@ function prepare(name, messages) {
   });
 }
 
-// Call one AI with one model name. Returns { ok, reply, tokens } or { ok:false, reason, cooldown, modelError, suggested }.
+// Call one AI with one model name. Returns { ok, reply, tokens } or { ok:false, reason, cooldown, modelError }.
 async function callModel(name, key, model, messages) {
   const p = PROVIDERS[name];
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -195,10 +221,7 @@ async function callModel(name, key, model, messages) {
       if (attempt === 0 && res.status === 429 && /token/i.test(text)) continue;
       const detail = errText(text);
       if (isModelError(res.status, text)) {
-        // Some providers name the right model in their error, e.g. "use this slug instead: x/y".
-        const m = /(?:slug instead|instead)\s*:?\s*([A-Za-z0-9@._\/:-]+)/i.exec(text);
-        return { ok: false, modelError: true, suggested: m ? m[1].replace(/[)"'.,]+$/, "") : null,
-          reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
+        return { ok: false, modelError: true, reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
       }
       if (res.status === 401) {
         return { ok: false, reason: "key rejected. Copy the key again from the provider and paste it into this AI's card, then Save.", cooldown: 300000 };
@@ -242,145 +265,25 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try each model name in turn, following any name the provider suggests, until one works.
-    const queue = modelsFor(name);
-    const seen = new Set();
+    // Try the saved or default model. If it isn't available, ask the provider for a model this key can use, then try that.
     let answered = null, last = null;
-    while (queue.length && !answered) {
-      const model = queue.shift();
-      if (seen.has(model)) continue;
-      seen.add(model);
+    let model = modelFor(name);
+    let triedLookup = false;
+    for (let step = 0; step < 3 && !answered; step++) {
+      if (!model) {
+        triedLookup = true;
+        model = await findWorkingModel(name, key);
+        if (!model) break;
+      }
       last = await callModel(name, key, model, messages);
       if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
-      if (!last.modelError) break; // not a model-name problem, so other names won't help
-      if (last.suggested && !seen.has(last.suggested)) queue.unshift(last.suggested);
+      if (!last.modelError || triedLookup) break;
+      model = await findWorkingModel(name, key);
+      triedLookup = true;
+      if (!model) break;
     }
 
     if (answered) {
       if (usingShared && !test) {
         shared.n[name] = (shared.n[name] || 0) + 1;
-        const L = limitOf(u, name); L.hn++; L.dn++;
-      }
-      models[name] = answered.model;
-      s.ok++; s.tokens += answered.tokens; u.current = name; u.reason[name] = "";
-      return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
-    }
-
-    const reason = last ? last.reason : "no model available";
-    s.fail++; u.reason[name] = reason;
-    u.until[name] = Date.now() + (last ? last.cooldown : 30000);
-    tried.push(`${name}: ${reason}`);
-  }
-  let msg;
-  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
-  else if (u.selected !== "auto" && !only && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
-  else if (list.length) msg = "All providers are resting right now.";
-  else msg = "Add at least one key first (AI providers).";
-  const err = new Error(msg);
-  err.tried = tried; throw err;
-}
-
-function status(u) {
-  const next = planFor(u).find((n) => !resting(u, n));
-  return {
-    selected: u.selected, current: u.current, nextUp: next || null,
-    limits: { perHour: PER_USER_HOURLY, perDay: PER_USER_DAILY },
-    providers: Object.entries(PROVIDERS).map(([name, p]) => {
-      const s = usage(u, name), own = !!u.keys[name];
-      const L = own ? null : limitOf(u, name);
-      return { name, model: modelsFor(name)[0], keyUrl: p.keyUrl, paid: !!p.paid, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
-        resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
-        requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
-        usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
-        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
-    }),
-  };
-}
-
-const signups = {}; // simple per-network limit on new keys
-const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
-
-async function route(req, res) {
-  if (!req.url.startsWith("/api/")) {
-    return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
-      if (err) { res.writeHead(404); return res.end("Not found"); }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(data);
-    });
-  }
-  let raw = "";
-  for await (const c of req) { raw += c; if (raw.length > 6e6) return send(res, 413, { error: "too large" }); }
-  let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
-
-  if (req.url === "/api/signup" && req.method === "POST") {
-    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-    const hits = (signups[ip] || []).filter((t) => Date.now() - t < 3600000);
-    if (hits.length >= 10) return send(res, 429, { error: "Too many new keys from your network. Try again in an hour." });
-    signups[ip] = [...hits, Date.now()];
-    const token = "fa-" + crypto.randomBytes(18).toString("base64url");
-    await saveUser(token, newUser());
-    return send(res, 200, { token });
-  }
-  const token = req.headers["x-access-key"] || "";
-  const u = token ? await loadUser(token) : null;
-  if (!u) return send(res, 401, { error: "Key not recognized" });
-
-  if (req.url === "/api/status") return send(res, 200, status(u));
-
-  if (req.url === "/api/chats") return send(res, 200, listChats(u));
-  if (req.url === "/api/chats/open") {
-    const c = u.chats?.[String(body.id || "").slice(0, 40)];
-    return c ? send(res, 200, c) : send(res, 404, { error: "Chat not found" });
-  }
-  if (req.url === "/api/chats/delete") {
-    if (u.chats) delete u.chats[String(body.id || "").slice(0, 40)];
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-  if (req.url === "/api/chats/sync") {
-    putChat(u, body.id, body.messages);
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-
-  if (req.url === "/api/key" && PROVIDERS[body.provider]) {
-    if (body.key) { u.keys[body.provider] = String(body.key).trim(); delete u.until[body.provider]; u.reason[body.provider] = ""; }
-    else { delete u.keys[body.provider]; if (u.selected === body.provider) u.selected = "auto"; }
-    await saveUser(token, u); return send(res, 200, status(u));
-  }
-  if (req.url === "/api/select") {
-    if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
-    await saveUser(token, u); return send(res, 200, status(u));
-  }
-  if (req.url === "/api/test" && PROVIDERS[body.provider]) {
-    const name = body.provider;
-    if (!u.keys[name] && !envKey(name)) return send(res, 200, { ok: false, error: "No key added for this AI yet." });
-    if (!u.keys[name] && dailyCap(name) <= 0) return send(res, 200, { ok: false, error: "Shared use is off for this AI. Add your own key to test it." });
-    try {
-      const out = await ask(u, [{ role: "user", content: "Reply with just the word OK." }], name, true);
-      await saveUser(token, u);
-      return send(res, 200, { ok: true, reply: String(out.reply).slice(0, 60), model: out.model });
-    } catch (e) {
-      await saveUser(token, u);
-      return send(res, 200, { ok: false, error: (e.tried && e.tried[0]) || e.message });
-    }
-  }
-  if (req.url === "/api/chat" && Array.isArray(body.messages)) {
-    const hasOwn = Object.values(u.keys).some(Boolean);
-    if (!ordered(u).length) return send(res, 503, { error: "Add at least one key first. Tap the AI providers button at the top." });
-    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
-    try {
-      const out = await ask(u, body.messages);
-      putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
-      await saveUser(token, u);
-      return send(res, 200, out);
-    } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
-  }
-  send(res, 404, { error: "not found" });
-}
-
-http.createServer((req, res) => {
-  route(req, res).catch((e) => {
-    console.error(e);
-    if (!res.headersSent) send(res, 500, { error: "Something went wrong on the server. Try again." });
-  });
-}).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
+        const L = limitOf(u,
