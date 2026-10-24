@@ -7,7 +7,7 @@
 <style>
   :root { --bg:#ffffff; --surface:#fff; --soft:#f0f1ee; --ink:#1c2420; --mute:#6b7771; --line:#e2e5e0; --accent:#2563eb; --accent-ink:#fff; --ok:#16a34a; --warn:#d38a2b; --off:#b3bbb6; --radius:14px; --shadow:0 8px 30px rgba(20,30,25,.12); color-scheme:light; }
   * { box-sizing:border-box; }
-  html,body { height:100%; margin:0; }
+  html,body { height:100%; margin:0; overflow:hidden; overscroll-behavior:none; }
   body { background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
   button { font:inherit; cursor:pointer; color:inherit; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -20,7 +20,8 @@
   .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); }
 
   /* login */
-  #login { min-height:100%; display:flex; align-items:center; justify-content:center; padding:20px; }
+  #login { height:100%; overflow-y:auto; display:flex; padding:20px; }
+  #login .card { margin:auto; }
   .card { width:100%; max-width:420px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:28px; box-shadow:var(--shadow); }
   .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
   .logo { width:28px; height:28px; border-radius:9px; background:linear-gradient(135deg, #2563eb, #38bdf8); color:#fff; display:grid; place-items:center; font-size:16px; font-weight:700; line-height:1; }
@@ -30,12 +31,12 @@
   .card .row .btn { flex:none; padding:10px 16px; }
   .or { text-align:center; color:var(--mute); font-size:13px; margin:14px 0; }
   .row { display:flex; gap:8px; }
-  input[type=password], input[type=text] { flex:1; min-width:0; padding:10px 12px; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+  input[type=password], input[type=text] { flex:1; min-width:0; padding:10px 12px; font:inherit; font-size:16px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; }
   code.key { display:block; padding:12px; margin:0 0 12px; background:var(--soft); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
   .card .err { color:var(--warn); font-size:14px; min-height:20px; margin:10px 0 0; }
 
   /* app */
-  #app { height:100%; display:flex; flex-direction:column; }
+  #app { position:fixed; left:0; right:0; top:0; height:100dvh; overflow:hidden; display:flex; flex-direction:column; background:var(--bg); }
   .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface); }
   .top .actions { display:flex; gap:8px; align-items:center; }
   .pill { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:13px; font-weight:600; background:var(--soft); border:1px solid var(--line); border-radius:99px; max-width:55vw; }
@@ -65,8 +66,8 @@
   #send:disabled { opacity:.4; cursor:default; }
 
   /* drawer */
-  #scrim { position:fixed; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .2s; }
-  #drawer { position:fixed; top:0; right:0; bottom:0; width:min(400px, 100%); background:var(--bg); border-left:1px solid var(--line); box-shadow:var(--shadow); transform:translateX(100%); transition:transform .22s; overflow-y:auto; padding:0 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  #scrim { position:absolute; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .2s; }
+  #drawer { position:absolute; top:0; right:0; bottom:0; width:min(400px, 100%); background:var(--bg); border-left:1px solid var(--line); box-shadow:var(--shadow); transform:translateX(100%); transition:transform .22s; overflow-y:auto; padding:0 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
   .open #scrim { opacity:1; pointer-events:auto; } .open #drawer { transform:none; }
   .dhead { display:flex; align-items:center; justify-content:space-between; padding:14px 0; position:sticky; top:0; background:var(--bg); }
   .dhead h2 { margin:0; font-size:18px; }
@@ -84,6 +85,15 @@
   .setup { text-align:left; max-width:420px; margin:0 auto 18px; padding:16px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
   .setup ol { margin:8px 0 12px; padding-left:20px; color:var(--mute); font-size:14px; }
   .setup li { margin:4px 0; }
+  .msg { -webkit-touch-callout:none; }
+  @media (pointer:coarse) { .msg { -webkit-user-select:none; user-select:none; } }
+  .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--soft); border-radius:12px; }
+  #sheet { position:absolute; inset:0; z-index:50; display:flex; align-items:flex-end; }
+  #sheetbg { position:absolute; inset:0; background:rgba(0,0,0,.35); }
+  .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom, 0px)); background:var(--surface); border-radius:18px 18px 0 0; box-shadow:var(--shadow); }
+  .sheetbody button { display:block; width:100%; padding:15px 8px; font-size:17px; text-align:center; background:none; border:0; border-bottom:1px solid var(--line); }
+  .sheetbody button:last-child { border-bottom:0; color:var(--mute); }
+  .sheetbody .danger { color:#dc2626; }
 </style>
 </head>
 <body>
@@ -132,6 +142,7 @@
     </div>
   </div></main>
   <form id="f" class="composer">
+    <div id="editbar" class="editbar off"><span>Editing message</span><button type="button" id="editcancel" class="btn ghost small">Cancel</button></div>
     <div class="box">
       <textarea id="q" rows="1" placeholder="Message" aria-label="Message" required></textarea>
       <button id="send" aria-label="Send">↑</button>
@@ -147,6 +158,15 @@
       <div class="acct" id="acct"></div>
     </aside>
   </div>
+  <div id="sheet" class="off">
+    <div id="sheetbg"></div>
+    <div class="sheetbody" role="menu">
+      <button type="button" data-do="copy">Copy</button>
+      <button type="button" data-do="edit">Edit</button>
+      <button type="button" data-do="del" class="danger">Delete</button>
+      <button type="button" data-do="cancel">Cancel</button>
+    </div>
+  </div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -154,7 +174,7 @@ const log = $("log"), col = $("col"), q = $("q"), send = $("send"), wrap = $("wr
 const nf = n => n.toLocaleString();
 const getKey = () => localStorage.getItem("freeai-key");
 const history = [];
-let st = null, busy = false;
+let st = null, busy = false, editing = null;
 
 async function api(path, body) {
   const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
@@ -242,32 +262,96 @@ $("enter").onclick = async () => {
 const prompts = ["Explain something in simple words", "Help me write a polite email", "Give me a quick dinner idea", "Quiz me on world capitals"];
 $("chips").innerHTML = prompts.map(p => `<button type="button" class="chip">${p}</button>`).join("");
 $("chips").onclick = e => { if (e.target.classList.contains("chip")) { q.value = e.target.textContent; $("f").requestSubmit(); } };
-function newChat() { history.length = 0; [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); }); $("empty").classList.remove("off"); }
+function newChat() { history.length = 0; editing = null; $("editbar").classList.add("off"); [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); }); $("empty").classList.remove("off"); }
 $("newchat").onclick = newChat;
 
-function add(cls, text, meta) {
+function add(cls, text, meta, idx, quiet) {
   $("empty").classList.add("off");
   const d = document.createElement("div"); d.className = "msg " + cls;
+  if (idx !== undefined) d.dataset.i = idx;
   if (cls === "bot") { d.innerHTML = `<div class="body">${fmt(text)}</div>` + (meta ? `<div class="meta">${esc(meta)}</div>` : ""); }
   else d.textContent = text;
-  col.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  col.appendChild(d);
+  if (!quiet && cls !== "bot") toBottom();
+  return d;
 }
+const toBottom = () => { log.scrollTop = log.scrollHeight; };
+const toStart = el => { log.scrollTop += el.getBoundingClientRect().top - log.getBoundingClientRect().top - 12; };
+function redraw() {
+  const keep = log.scrollTop;
+  [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); });
+  history.forEach((m, i) => add(m.role === "user" ? "me" : "bot", m.content, m.meta, i, true));
+  $("empty").classList.toggle("off", history.length > 0);
+  log.scrollTop = keep;
+}
+function cancelEdit(keepText) {
+  editing = null; $("editbar").classList.add("off");
+  if (!keepText) { q.value = ""; q.dispatchEvent(new Event("input")); }
+}
+$("editcancel").onclick = () => cancelEdit(false);
+
 q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
 q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("f").requestSubmit(); } });
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
   const text = q.value.trim(); if (!text || busy) return;
+  if (editing !== null) { history.length = editing; cancelEdit(true); redraw(); }
   busy = true; send.disabled = true; q.value = ""; q.style.height = "auto";
-  history.push({ role: "user", content: text }); add("me", text);
+  history.push({ role: "user", content: text });
+  const mine = add("me", text, "", history.length - 1);
   const wait = add("thinking", "Thinking…");
   try {
-    const d = await api("/api/chat", { messages: history });
-        if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
-    history.push({ role: "assistant", content: d.reply }); wait.remove();
-    add("bot", d.reply, d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : ""));
-  } catch (err) { history.pop(); wait.remove(); add("note", err.message + " Open the provider list at the top to add keys or check wait times."); }
-  busy = false; send.disabled = false; refresh(); q.focus();
+    const d = await api("/api/chat", { messages: history.map(({ role, content }) => ({ role, content })) });
+    if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
+    const meta = d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : "");
+    history.push({ role: "assistant", content: d.reply, meta }); wait.remove();
+    toStart(add("bot", d.reply, meta, history.length - 1, true)); // show the start of the reply, not the end
+  } catch (err) {
+    history.pop(); wait.remove(); mine.remove(); q.value = text; q.dispatchEvent(new Event("input"));
+    add("note", err.message + " Your message is back in the box. Open the provider list at the top to add keys or check wait times.");
+  }
+  busy = false; send.disabled = false; refresh();
+  if (matchMedia("(pointer:fine)").matches) q.focus();
 });
+
+// --- hold a message to copy / edit / delete ---
+let lp = null, lpAt = null, target = null, sheetAt = 0;
+function openSheet(el) {
+  const i = Number(el.dataset.i), m = history[i]; if (!m) return;
+  target = i; sheetAt = Date.now();
+  document.querySelector('[data-do="edit"]').classList.toggle("off", m.role !== "user");
+  document.querySelector('[data-do="del"]').classList.toggle("off", m.role !== "user");
+  $("sheet").classList.remove("off");
+}
+const closeSheet = () => $("sheet").classList.add("off");
+col.addEventListener("pointerdown", e => {
+  const m = e.target.closest(".msg[data-i]"); if (!m) return;
+  lpAt = { x: e.clientX, y: e.clientY }; clearTimeout(lp);
+  lp = setTimeout(() => { lp = null; navigator.vibrate?.(12); openSheet(m); }, 450);
+});
+col.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - lpAt.x, e.clientY - lpAt.y) > 10) { clearTimeout(lp); lp = null; } });
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => col.addEventListener(ev, () => { clearTimeout(lp); lp = null; }));
+col.addEventListener("contextmenu", e => { const m = e.target.closest(".msg[data-i]"); if (m) { e.preventDefault(); clearTimeout(lp); openSheet(m); } });
+$("sheet").addEventListener("click", async e => {
+  if (Date.now() - sheetAt < 400) return; // ignore the finger lifting from the long-press
+  const act = e.target.dataset.do;
+  if (!act && e.target.id !== "sheetbg") return;
+  const m = history[target];
+  if (act === "copy" && m) { try { await navigator.clipboard.writeText(m.content); } catch {} }
+  else if (act === "edit" && m) { editing = target; q.value = m.content; q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
+  else if (act === "del" && m) { cancelEdit(false); history.splice(target, history[target + 1]?.role === "assistant" ? 2 : 1); redraw(); }
+  closeSheet();
+});
+
+// --- keep the chat visible and scrollable while the keyboard is open ---
+const vv = window.visualViewport;
+function fit() {
+  const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+  $("app").style.height = vv.height + "px"; $("app").style.top = vv.offsetTop + "px";
+  window.scrollTo(0, 0);
+  if (nearBottom) toBottom();
+}
+if (vv) { vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); fit(); }
 
 if (getKey()) { show(true); refresh(); } else show(false);
 setInterval(() => { if (!document.activeElement || document.activeElement.tagName !== "INPUT") refresh(); }, 5000);
