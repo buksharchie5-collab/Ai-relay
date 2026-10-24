@@ -286,4 +286,128 @@ async function ask(u, messages, only, test) {
     if (answered) {
       if (usingShared && !test) {
         shared.n[name] = (shared.n[name] || 0) + 1;
-        const L = limitOf(u,
+        const L = limitOf(u, name); L.hn++; L.dn++;
+      }
+      models[name] = answered.model;
+      s.ok++; s.tokens += answered.tokens; u.current = name; u.reason[name] = "";
+      return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
+    }
+
+    const reason = last ? last.reason : "no chat model found for this key";
+    s.fail++; u.reason[name] = reason;
+    u.until[name] = Date.now() + (last ? last.cooldown : 60000);
+    tried.push(`${name}: ${reason}`);
+  }
+  let msg;
+  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
+  else if (u.selected !== "auto" && !only && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
+  else if (list.length) msg = "All providers are resting right now.";
+  else msg = "Add at least one key first (AI providers).";
+  const err = new Error(msg);
+  err.tried = tried; throw err;
+}
+
+function status(u) {
+  const next = planFor(u).find((n) => !resting(u, n));
+  return {
+    selected: u.selected, current: u.current, nextUp: next || null,
+    limits: { perHour: PER_USER_HOURLY, perDay: PER_USER_DAILY },
+    providers: Object.entries(PROVIDERS).map(([name, p]) => {
+      const s = usage(u, name), own = !!u.keys[name];
+      const L = own ? null : limitOf(u, name);
+      return { name, model: modelFor(name) || "finding a model…", keyUrl: p.keyUrl, paid: !!p.paid, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
+        resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
+        requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
+        usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
+        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
+    }),
+  };
+}
+
+const signups = {}; // simple per-network limit on new keys
+const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+
+async function route(req, res) {
+  if (!req.url.startsWith("/api/")) {
+    return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
+      if (err) { res.writeHead(404); return res.end("Not found"); }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(data);
+    });
+  }
+  let raw = "";
+  for await (const c of req) { raw += c; if (raw.length > 6e6) return send(res, 413, { error: "too large" }); }
+  let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
+
+  if (req.url === "/api/signup" && req.method === "POST") {
+    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+    const hits = (signups[ip] || []).filter((t) => Date.now() - t < 3600000);
+    if (hits.length >= 10) return send(res, 429, { error: "Too many new keys from your network. Try again in an hour." });
+    signups[ip] = [...hits, Date.now()];
+    const token = "fa-" + crypto.randomBytes(18).toString("base64url");
+    await saveUser(token, newUser());
+    return send(res, 200, { token });
+  }
+  const token = req.headers["x-access-key"] || "";
+  const u = token ? await loadUser(token) : null;
+  if (!u) return send(res, 401, { error: "Key not recognized" });
+
+  if (req.url === "/api/status") return send(res, 200, status(u));
+
+  if (req.url === "/api/chats") return send(res, 200, listChats(u));
+  if (req.url === "/api/chats/open") {
+    const c = u.chats?.[String(body.id || "").slice(0, 40)];
+    return c ? send(res, 200, c) : send(res, 404, { error: "Chat not found" });
+  }
+  if (req.url === "/api/chats/delete") {
+    if (u.chats) delete u.chats[String(body.id || "").slice(0, 40)];
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+  if (req.url === "/api/chats/sync") {
+    putChat(u, body.id, body.messages);
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+
+  if (req.url === "/api/key" && PROVIDERS[body.provider]) {
+    if (body.key) { u.keys[body.provider] = String(body.key).trim(); delete u.until[body.provider]; u.reason[body.provider] = ""; }
+    else { delete u.keys[body.provider]; if (u.selected === body.provider) u.selected = "auto"; }
+    await saveUser(token, u); return send(res, 200, status(u));
+  }
+  if (req.url === "/api/select") {
+    if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
+    await saveUser(token, u); return send(res, 200, status(u));
+  }
+  if (req.url === "/api/test" && PROVIDERS[body.provider]) {
+    const name = body.provider;
+    if (!u.keys[name] && !envKey(name)) return send(res, 200, { ok: false, error: "No key added for this AI yet." });
+    if (!u.keys[name] && dailyCap(name) <= 0) return send(res, 200, { ok: false, error: "Shared use is off for this AI. Add your own key to test it." });
+    try {
+      const out = await ask(u, [{ role: "user", content: "Reply with just the word OK." }], name, true);
+      await saveUser(token, u);
+      return send(res, 200, { ok: true, reply: String(out.reply).slice(0, 60), model: out.model });
+    } catch (e) {
+      await saveUser(token, u);
+      return send(res, 200, { ok: false, error: (e.tried && e.tried[0]) || e.message });
+    }
+  }
+  if (req.url === "/api/chat" && Array.isArray(body.messages)) {
+    const hasOwn = Object.values(u.keys).some(Boolean);
+    if (!ordered(u).length) return send(res, 503, { error: "Add at least one key first. Tap the AI providers button at the top." });
+    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
+    try {
+      const out = await ask(u, body.messages);
+      putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
+      await saveUser(token, u);
+      return send(res, 200, out);
+    } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
+  }
+  send(res, 404, { error: "not found" });
+}
+
+http.createServer((req, res) => {
+  route(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) send(res, 500, { error: "Something went wrong on the server. Try again." });
+  });
+}).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
