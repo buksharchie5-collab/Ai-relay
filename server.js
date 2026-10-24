@@ -8,11 +8,16 @@ const crypto = require("crypto");
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
 
-// Fair-use limits for people using the shared keys (people with their own keys aren't capped).
-const PER_USER_HOURLY = 20; // messages per person per hour
-const PER_USER_DAILY = 70;  // messages per person per day
+// Fair-use limits. On shared keys these apply to EACH AI separately. Your own keys aren't capped.
+const PER_USER_HOURLY = 20; // messages per person per AI per hour
+const PER_USER_DAILY = 70;  // messages per person per AI per day
 const MAX_CHATS = 50;       // saved chats per person
 const MAX_MESSAGES = 200;   // messages kept per chat
+
+// Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
+// The full chat is still saved and shown on screen.
+const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
+const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
 // Free-tier models change often: edit `model` here if a provider retires one.
 // (If one is retired, the app also tries to find a working model by itself.)
@@ -20,14 +25,16 @@ const MAX_MESSAGES = 200;   // messages kept per chat
 const PROVIDERS = {
   Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys", daily: 900 },
   Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b", keyUrl: "https://cloud.cerebras.ai", daily: 500 },
-  Gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", model: "gemini-2.5-flash", keyUrl: "https://aistudio.google.com/apikey", daily: 200 },
   OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "meta-llama/llama-3.3-70b-instruct:free", keyUrl: "https://openrouter.ai/keys", daily: 45 },
   Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai", daily: 200 },
   NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.3-70b-instruct", keyUrl: "https://build.nvidia.com", daily: 500 },
   SambaNova: { url: "https://api.sambanova.ai/v1/chat/completions", model: "Meta-Llama-3.3-70B-Instruct", keyUrl: "https://cloud.sambanova.ai", daily: 20 },
 };
 
-// Shared keys come from Render's environment, e.g. GROQ_API_KEY, NVIDIA_API_KEY, SAMBANOVA_API_KEY
+// Providers that can read photos. Photos are only sent to these.
+const VISION = ["Mistral"];
+
+// Shared keys come from Render's environment, e.g. GROQ_API_KEY, MISTRAL_API_KEY, NVIDIA_API_KEY
 const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
 // Optional override, e.g. SAMBANOVA_DAILY_LIMIT
 const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
@@ -43,6 +50,12 @@ function sharedLeft(name) {
 // True if at least one shared provider still has messages left today
 const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
 
+// --- text helpers: a message is either plain text or [text part, image part] ---
+const textOf = (c) => Array.isArray(c) ? ((c.find((p) => p && p.type === "text") || {}).text || "") : String(c ?? "");
+const hasPhoto = (c) => Array.isArray(c) && c.some((p) => p && p.type === "image_url");
+// Text version used when saving chats (photos aren't stored, so we keep a marker)
+const plain = (c) => hasPhoto(c) ? (textOf(c) + " [photo]").trim() : textOf(c);
+
 // --- storage: one encrypted file per access key (the key itself is never stored) ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
 const fileOf = (t) => path.join(DIR, sha("id:" + t).toString("hex") + ".bin");
@@ -54,7 +67,7 @@ async function writeBlob(t, buf) {
   fs.writeFileSync(fileOf(t), buf);
 }
 
-const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, hour: { start: 0, n: 0 }, day: { day: "", n: 0 }, chats: {} });
+const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {} });
 
 async function loadUser(t) {
   try {
@@ -72,6 +85,15 @@ async function saveUser(t, u) {
   await writeBlob(t, Buffer.concat([iv, c.getAuthTag(), enc]));
 }
 
+// --- per-AI limits for one person: each AI has its own hourly and daily count ---
+function limitOf(u, name) {
+  u.lim ||= {};
+  const L = (u.lim[name] ||= { hs: 0, hn: 0, day: "", dn: 0 });
+  if (Date.now() - L.hs > 3600000) { L.hs = Date.now(); L.hn = 0; }
+  if (L.day !== today()) { L.day = today(); L.dn = 0; }
+  return L;
+}
+
 // --- saved chats ---
 function putChat(u, id, messages) {
   if (!id || !Array.isArray(messages)) return;
@@ -80,7 +102,7 @@ function putChat(u, id, messages) {
   if (!messages.length) { delete u.chats[key]; return; }
   const clean = messages.slice(-MAX_MESSAGES).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: String(m.content || "").slice(0, 20000),
+    content: plain(m.content).slice(0, 20000),
     meta: String(m.meta || "").slice(0, 200),
   }));
   const first = clean.find((m) => m.role === "user");
@@ -111,8 +133,7 @@ async function discover(name, key) {
     let ids = (j.data || j.models || []).map((m) => String(m.id || m.name || "").replace(/^models\//, "")).filter(Boolean);
     ids = ids.filter((id) => !/embed|whisper|tts|guard|vision|image|imagen|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|live|robotics|learnlm|ocr/i.test(id));
     if (name === "OpenRouter") ids = ids.filter((id) => id.endsWith(":free"));
-    if (name === "Gemini") ids = ids.filter((id) => id.startsWith("gemini-"));
-    const prefer = [/llama.*70b/i, /70b/i, /120b/i, /flash/i, /large|medium/i, /llama|qwen|gemma|mistral|gpt-oss|deepseek|nemotron/i];
+    const prefer = [/llama.*70b/i, /70b/i, /120b/i, /large|medium/i, /llama|qwen|gemma|mistral|gpt-oss|deepseek|nemotron/i];
     for (const re of prefer) { const hit = ids.find((id) => re.test(id)); if (hit) return hit; }
     return ids[0] || null;
   } catch { return null; }
@@ -125,34 +146,88 @@ function ordered(u) {
   const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n));
   return have.includes(u.selected) ? [u.selected, ...have.filter((n) => n !== u.selected)] : have;
 }
+// If the person pinned an AI, use ONLY that AI. Auto-switch uses them all in order.
+function planFor(u) {
+  const all = ordered(u);
+  return u.selected !== "auto" && all.includes(u.selected) ? [u.selected] : all;
+}
 function cooldownFor(res, text) {
   const ra = parseInt(res.headers.get("retry-after"), 10);
   if (!isNaN(ra)) return ra * 1000;
   return /day|daily|quota/i.test(text) ? 3600000 : 60000;
 }
 
-async function ask(u, messages) {
+// Keep only the latest messages (starting with a user message) and shorten very long text.
+function trimContext(messages, n) {
+  let out = messages.slice(-n);
+  while (out.length && out[0].role !== "user") out = out.slice(1);
+  return out.map((m) => {
+    if (hasPhoto(m.content)) return m;
+    const t = textOf(m.content);
+    return { role: m.role, content: t.length > CONTEXT_CHARS ? t.slice(-CONTEXT_CHARS) : t };
+  });
+}
+
+// Shape the messages for one provider. Text-only providers get text; only the newest photo is sent.
+function prepare(name, messages) {
+  const last = messages.length - 1;
+  return messages.map((m, i) => {
+    if (!hasPhoto(m.content)) return { role: m.role, content: textOf(m.content) };
+    if (!VISION.includes(name) || i !== last) return { role: m.role, content: plain(m.content) };
+    if (name === "Mistral") {
+      return { role: m.role, content: m.content.map((p) => p.type === "image_url" ? { type: "image_url", image_url: p.image_url.url } : p) };
+    }
+    return { role: m.role, content: m.content };
+  });
+}
+
+// only = ask just this AI (used by the Test button). test = don't count it against limits.
+async function ask(u, messages, only, test) {
   const tried = [];
-  for (const name of ordered(u)) {
+  const photo = hasPhoto(messages[messages.length - 1]?.content);
+  let list = only ? [only] : planFor(u);
+  if (photo) {
+    const ok = list.filter((n) => VISION.includes(n));
+    if (!ok.length) {
+      const pinned = !only && u.selected !== "auto" && !VISION.includes(u.selected) ? u.selected : null;
+      const err = new Error(pinned
+        ? `${pinned} can't read photos. Pick Mistral in AI providers, or choose Auto-switch.`
+        : "Photos only work with Mistral right now. Add a free Mistral key in AI providers.");
+      err.tried = []; throw err;
+    }
+    list = ok;
+  }
+  let limited = 0;
+  for (const name of list) {
     if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
     const usingShared = !u.keys[name];
-    if (usingShared && sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
+    if (usingShared && !test) {
+      if (sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
+      const L = limitOf(u, name);
+      if (L.hn >= PER_USER_HOURLY) { limited++; tried.push(`${name}: your ${PER_USER_HOURLY} messages this hour are used`); continue; }
+      if (L.dn >= PER_USER_DAILY) { limited++; tried.push(`${name}: your ${PER_USER_DAILY} messages today are used`); continue; }
+    }
     const p = PROVIDERS[name], s = usage(u, name);
     const key = u.keys[name] || envKey(name);
     let reason = "";
     for (let attempt = 0; attempt < 2; attempt++) {
+      // First try the recent context; if the provider's per-minute token limit is hit, retry with only the last 2 messages.
+      const ctx = trimContext(messages, attempt === 0 ? CONTEXT_MESSAGES : 2);
       try {
         const res = await fetch(p.url, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-          body: JSON.stringify({ model: modelOf(name), messages }),
+          body: JSON.stringify({ model: modelOf(name), messages: prepare(name, ctx) }),
           signal: AbortSignal.timeout(45000),
         });
         const text = await res.text();
         if (res.ok) {
           const data = JSON.parse(text), reply = data.choices?.[0]?.message?.content;
           if (reply) {
-            if (usingShared) shared.n[name] = (shared.n[name] || 0) + 1;
+            if (usingShared && !test) {
+              shared.n[name] = (shared.n[name] || 0) + 1;
+              const L = limitOf(u, name); L.hn++; L.dn++;
+            }
             s.ok++; s.tokens += data.usage?.total_tokens || 0; u.current = name; u.reason[name] = "";
             const rl = res.headers.get("x-ratelimit-remaining-requests");
             if (rl !== null) s.left = Number(rl);
@@ -160,6 +235,8 @@ async function ask(u, messages) {
           }
           reason = "empty reply"; u.until[name] = Date.now() + 30000; break;
         }
+        // Too many tokens this minute? Retry once with a much shorter context.
+        if (attempt === 0 && res.status === 429 && /token/i.test(text)) continue;
         // Model retired or renamed? Look up a working one and try once more.
         if (attempt === 0 && (res.status === 404 || res.status === 410 || (res.status === 400 && /model/i.test(text)))) {
           const m = await discover(name, key);
@@ -167,34 +244,36 @@ async function ask(u, messages) {
         }
         const detail = errText(text);
         reason = `HTTP ${res.status}${detail ? ": " + detail : ""}`;
-        if (res.status === 401) u.until[name] = Date.now() + 300000;
+        if (res.status === 401) { reason = "key rejected. " + detail; u.until[name] = Date.now() + 300000; }
         else if (res.status === 404 || res.status === 410) u.until[name] = Date.now() + 300000;
         else if ([402, 403, 429].includes(res.status) || res.status >= 500) u.until[name] = Date.now() + cooldownFor(res, text);
         else u.until[name] = Date.now() + 30000;
-        if (res.status === 401) reason = "key rejected. " + detail;
         break;
       } catch (e) { reason = e.message; u.until[name] = Date.now() + 30000; break; }
     }
     s.fail++; u.reason[name] = reason; tried.push(`${name}: ${reason}`);
   }
-  const err = new Error(ordered(u).length ? "All providers are resting right now." : "Add at least one free key first.");
+  let msg;
+  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
+  else if (u.selected !== "auto" && !only && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
+  else if (list.length) msg = "All providers are resting right now.";
+  else msg = "Add at least one free key first.";
+  const err = new Error(msg);
   err.tried = tried; throw err;
 }
 
 function status(u) {
-  const next = ordered(u).find((n) => !resting(u, n));
-  const h = u.hour || { start: 0, n: 0 };
-  const d = u.day || { day: "", n: 0 };
-  const hourUsed = Date.now() - h.start > 3600000 ? 0 : h.n;
-  const dayUsed = d.day === today() ? d.n : 0;
+  const next = planFor(u).find((n) => !resting(u, n));
   return {
     selected: u.selected, current: u.current, nextUp: next || null,
-    limits: { perHour: PER_USER_HOURLY, usedThisHour: hourUsed, perDay: PER_USER_DAILY, usedToday: dayUsed },
+    limits: { perHour: PER_USER_HOURLY, perDay: PER_USER_DAILY },
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
-      const s = usage(u, name);
-      return { name, model: modelOf(name), keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), own: !!u.keys[name], coolingDown: resting(u, name),
+      const s = usage(u, name), own = !!u.keys[name];
+      const L = own ? null : limitOf(u, name);
+      return { name, model: modelOf(name), keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
         requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
+        usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
         sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
     }),
   };
@@ -211,7 +290,7 @@ async function route(req, res) {
     });
   }
   let raw = "";
-  for await (const c of req) { raw += c; if (raw.length > 2e6) return send(res, 413, { error: "too large" }); }
+  for await (const c of req) { raw += c; if (raw.length > 6e6) return send(res, 413, { error: "too large" }); }
   let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
 
   if (req.url === "/api/signup" && req.method === "POST") {
@@ -254,27 +333,22 @@ async function route(req, res) {
     if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
     await saveUser(token, u); return send(res, 200, status(u));
   }
+  if (req.url === "/api/test" && PROVIDERS[body.provider]) {
+    if (!u.keys[body.provider] && !envKey(body.provider)) return send(res, 200, { ok: false, error: "No key added for this AI yet." });
+    try {
+      const out = await ask(u, [{ role: "user", content: "Reply with just the word OK." }], body.provider, true);
+      await saveUser(token, u);
+      return send(res, 200, { ok: true, reply: String(out.reply).slice(0, 60), model: out.model });
+    } catch (e) {
+      await saveUser(token, u);
+      return send(res, 200, { ok: false, error: (e.tried && e.tried[0]) || e.message });
+    }
+  }
   if (req.url === "/api/chat" && Array.isArray(body.messages)) {
     const hasOwn = Object.values(u.keys).some(Boolean);
     if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared free limit is used up on every provider. It resets at midnight UTC. You can also add your own free key." });
-
-    const h = (u.hour ||= { start: 0, n: 0 });
-    if (Date.now() - h.start > 3600000) { h.start = Date.now(); h.n = 0; }
-    if (!hasOwn && h.n >= PER_USER_HOURLY) {
-      const mins = Math.ceil((h.start + 3600000 - Date.now()) / 60000);
-      return send(res, 429, { error: `You've used your ${PER_USER_HOURLY} messages for this hour. Try again in ${mins} min, or add your own free key.` });
-    }
-
-    const d = (u.day ||= { day: today(), n: 0 });
-    if (d.day !== today()) { d.day = today(); d.n = 0; }
-    if (!hasOwn && d.n >= PER_USER_DAILY) {
-      return send(res, 429, { error: `You've used your ${PER_USER_DAILY} free messages for today. They reset at midnight UTC, or add your own free key.` });
-    }
-
-    h.n++;
     try {
       const out = await ask(u, body.messages);
-      if (!hasOwn) d.n++;
       putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
       await saveUser(token, u);
       return send(res, 200, out);
