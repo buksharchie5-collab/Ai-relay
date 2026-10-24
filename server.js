@@ -25,11 +25,11 @@ const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this m
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
   Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", candidates: ["llama-3.1-8b-instant", "openai/gpt-oss-20b", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama3.1-8b", candidates: ["llama-3.3-70b", "qwen-3-32b", "gpt-oss-120b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.1-70b-instruct", candidates: ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "gpt-oss-120b", candidates: ["llama3.1-8b", "qwen-3-32b", "llama-3.3-70b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.1-8b-instruct", candidates: ["google/gemma-2-9b-it", "mistralai/mistral-7b-instruct-v0.3"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
   Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", candidates: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
   OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemma-3-27b-it:free", candidates: ["mistralai/mistral-small-3", "meta-llama/llama-3.3-70b-instruct:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", candidates: ["@cf/meta/llama-3.1-8b-instruct"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", candidates: ["@cf/meta/llama-3.1-8b-instruct-fast", "@cf/google/gemma-3-12b-it"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
 
 // AIs that can read photos. Photos are only sent to these.
