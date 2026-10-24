@@ -142,7 +142,7 @@
   <div class="card">
     <div class="brand"><span class="logo">⇄</span>AI Relay</div>
     <h1>When one free AI runs out, the next picks up</h1>
-    <p>AI Relay passes your chat to the next free AI when one hits its limit, so you keep going. Your personal key brings your setup back on any device.</p>
+    <p>AI Relay passes your chat to the next AI when one hits its limit, so you keep going. Your personal key brings your setup back on any device.</p>
     <div id="made" class="off">
       <code class="key" id="newkey"></code>
       <div class="row" style="margin-bottom:12px"><button id="copy2" class="btn ghost" type="button">Copy key</button><button id="go" class="btn" type="button">I saved it, continue</button></div>
@@ -172,7 +172,7 @@
         <ol>
           <li>Tap the provider button at the top and tap <b>Get a free key</b> on any card.</li>
           <li>Sign up, copy the key, paste it in and tap <b>Save</b>.</li>
-          <li>Add more providers for more messages.</li>
+          <li>Add more AIs for more messages.</li>
         </ol>
         <button type="button" class="btn small" id="openSetup">Set up my keys</button>
       </div>
@@ -257,7 +257,7 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const textOf = c => Array.isArray(c) ? ((c.find(p => p.type === "text") || {}).text || "") : String(c ?? "");
 const imgOf = c => Array.isArray(c) ? (((c.find(p => p.type === "image_url") || {}).image_url) || {}).url || null : null;
-const VISION = ["Mistral"]; // the only free AI here that can read photos
+const VISION = ["ChatGPT"]; // the AIs that can read photos
 let history = [], chatId = newId(), st = null, busy = false, editing = null, pendingImage = null, openedAt = 0;
 const testResult = {}; // provider name -> result text from the Test button
 
@@ -284,10 +284,10 @@ const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<
 
 // --- photo support: says exactly why a photo can't be sent right now ---
 function photoStatus() {
-  if (!st) return { ok: false, why: "Still loading your providers. Try again in a second." };
+  if (!st) return { ok: false, why: "Still loading your AIs. Try again in a second." };
   const keyed = st.providers.filter(p => VISION.includes(p.name) && p.hasKey);
-  if (!keyed.length) return { ok: false, why: "Photos only work with Mistral right now, because it's the only free AI here that can read images. Groq, Cerebras, OpenRouter, NVIDIA and SambaNova can only read text. To fix it, tap AI providers below and add a free Mistral key." };
-  if (keyed.every(p => p.coolingDown)) return { ok: false, why: "Mistral is resting right now, so it can't read photos. It comes back on its own in a few minutes." };
+  if (!keyed.length) return { ok: false, why: "Photos only work with ChatGPT right now, because it's the AI here that can read images. To fix it, tap AI providers below and add your own key for ChatGPT." };
+  if (keyed.every(p => p.coolingDown)) return { ok: false, why: "ChatGPT is resting right now, so it can't read photos. It comes back on its own in a few minutes." };
   return { ok: true };
 }
 
@@ -296,21 +296,25 @@ function render() {
   if (!st) return;
   const live = st.providers.filter(p => p.hasKey), name = st.current || st.nextUp;
   const cur = live.find(p => p.name === name);
-  $("ptxt").textContent = !live.length ? "Add a free key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
+  $("ptxt").textContent = !live.length ? "Add a key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
   $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
   $("setup").classList.toggle("off", st.providers.some(p => p.own));
   $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
   $("acctline").textContent = "Key " + (getKey() || "").slice(0, 7) + "…";
   $("cards").innerHTML = st.providers.map(p => {
     const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div>`;
-    if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}</div><div class="sub">${p.model}</div>
-      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">Get a free key</a></div>${keyBox}</div>`;
+    if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
+      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a free key"}</a></div>${keyBox}</div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
-    const limit = p.own ? "your own key · no limit" : `${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today`;
-    const shared = !p.own ? `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}` : "";
+    const needsOwn = p.paid && !p.own && p.sharedLeftToday === 0;
+    const limit = p.own ? "your own key · no limit" : needsOwn ? "paid AI · needs your own key" : `${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today`;
+    const shared = !p.own
+      ? (p.paid ? `<div class="sub" style="margin-top:6px">Paid AI · add your own key to use it. <a href="${p.keyUrl}" target="_blank" rel="noopener">Get one</a></div>${keyBox}`
+               : `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}`)
+      : "";
     const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
-    return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}</div><div class="sub">${p.model}</div>
+    return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
       <div class="st">${stTxt}</div><div class="sub">${limit}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors</div>${shared}${tr}
       <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use only this one"}</button><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
   }).join("");
@@ -337,10 +341,11 @@ $("drawer").addEventListener("click", async e => {
 function renderUsage() {
   if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
   const live = st.providers.filter(p => p.hasKey);
-  const rows = live.length ? live.map(p => p.own
-    ? `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
-    : `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
-  ).join("") : `<p class="hint">No providers yet. Add a key in AI providers.</p>`;
+  const rows = live.length ? live.map(p => {
+    if (p.own) return `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`;
+    if (p.paid && p.sharedLeftToday === 0) return `<div class="urow"><b>${p.name}</b><span>Paid AI · needs your own key</span></div>`;
+    return `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`;
+  }).join("") : `<p class="hint">No AIs added yet. Add a key in AI providers.</p>`;
   $("usebody").innerHTML = `<p class="hint" style="margin:6px 0 10px">Each AI has its own limit on the shared keys. Switching to another AI gives you that AI's full allowance.</p>${rows}`;
 }
 async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
@@ -492,7 +497,7 @@ $("f").addEventListener("submit", async e => {
   try {
     const d = await api("/api/chat", { chatId, messages: history.map(m => ({ role: m.role, content: m.content })) });
     if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
-    const meta = d.provider + " · " + d.model;
+    const meta = d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : "");
     history.push({ role: "assistant", content: d.reply, meta }); wait.remove();
     toStart(add("bot", d.reply, meta, history.length - 1, true)); // start of the reply, not the end
     loadChats();
