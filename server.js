@@ -12,6 +12,7 @@ const PER_USER_HOURLY = 20; // messages per person per hour
 const PER_USER_DAILY = 70;  // messages per person per day
 
 // Free-tier models change often: edit `model` here if a provider retires one.
+// (If one is retired, the app also tries to find a working model by itself.)
 // `daily` = messages per day allowed on YOUR shared key.
 const PROVIDERS = {
   Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys", daily: 900 },
@@ -59,6 +60,33 @@ function saveUser(t, u) {
   fs.writeFileSync(fileOf(t), Buffer.concat([iv, c.getAuthTag(), enc]));
 }
 
+// --- model auto-repair: if a provider retires a model, find a working one from its live list ---
+const models = {}; // provider -> model found automatically
+const modelOf = (name) => models[name] || PROVIDERS[name].model;
+
+function errText(text) {
+  try {
+    const j = JSON.parse(text);
+    const m = j.error?.message || j.message || (Array.isArray(j) ? j[0]?.error?.message : "") || "";
+    return String(m).replace(/\s+/g, " ").slice(0, 120);
+  } catch { return String(text).replace(/\s+/g, " ").slice(0, 120); }
+}
+
+async function discover(name, key) {
+  try {
+    const res = await fetch(PROVIDERS[name].url.replace("/chat/completions", "/models"), { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    const j = await res.json();
+    let ids = (j.data || j.models || []).map((m) => String(m.id || m.name || "").replace(/^models\//, "")).filter(Boolean);
+    ids = ids.filter((id) => !/embed|whisper|tts|guard|vision|image|imagen|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|live|robotics|learnlm|ocr/i.test(id));
+    if (name === "OpenRouter") ids = ids.filter((id) => id.endsWith(":free"));
+    if (name === "Gemini") ids = ids.filter((id) => id.startsWith("gemini-"));
+    const prefer = [/llama.*70b/i, /70b/i, /120b/i, /flash/i, /large|medium/i, /llama|qwen|gemma|mistral|gpt-oss|deepseek|nemotron/i];
+    for (const re of prefer) { const hit = ids.find((id) => re.test(id)); if (hit) return hit; }
+    return ids[0] || null;
+  } catch { return null; }
+}
+
 // --- failover logic, per user ---
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
 const resting = (u, n) => (u.until[n] || 0) > Date.now();
@@ -80,29 +108,42 @@ async function ask(u, messages) {
     if (usingShared && sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
     const p = PROVIDERS[name], s = usage(u, name);
     const key = u.keys[name] || envKey(name);
-    let reason;
-    try {
-      const res = await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model: p.model, messages }),
-        signal: AbortSignal.timeout(45000),
-      });
-      const text = await res.text();
-      if (res.ok) {
-        const data = JSON.parse(text), reply = data.choices?.[0]?.message?.content;
-        if (reply) {
-          if (usingShared) shared.n[name] = (shared.n[name] || 0) + 1;
-          s.ok++; s.tokens += data.usage?.total_tokens || 0; u.current = name; u.reason[name] = "";
-          const rl = res.headers.get("x-ratelimit-remaining-requests");
-          if (rl !== null) s.left = Number(rl);
-          return { reply, provider: name, model: p.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
+    let reason = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(p.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model: modelOf(name), messages }),
+          signal: AbortSignal.timeout(45000),
+        });
+        const text = await res.text();
+        if (res.ok) {
+          const data = JSON.parse(text), reply = data.choices?.[0]?.message?.content;
+          if (reply) {
+            if (usingShared) shared.n[name] = (shared.n[name] || 0) + 1;
+            s.ok++; s.tokens += data.usage?.total_tokens || 0; u.current = name; u.reason[name] = "";
+            const rl = res.headers.get("x-ratelimit-remaining-requests");
+            if (rl !== null) s.left = Number(rl);
+            return { reply, provider: name, model: modelOf(name), fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
+          }
+          reason = "empty reply"; u.until[name] = Date.now() + 30000; break;
         }
-        reason = "empty reply"; u.until[name] = Date.now() + 30000;
-      } else if (res.status === 401) { reason = "key rejected"; u.until[name] = Date.now() + 864e5; }
-      else if ([402, 403, 429].includes(res.status) || res.status >= 500) { reason = `HTTP ${res.status}`; u.until[name] = Date.now() + cooldownFor(res, text); }
-      else { reason = `HTTP ${res.status}`; u.until[name] = Date.now() + 30000; }
-    } catch (e) { reason = e.message; u.until[name] = Date.now() + 30000; }
+        // Model retired or renamed? Look up a working one and try once more.
+        if (attempt === 0 && (res.status === 404 || res.status === 410 || (res.status === 400 && /model/i.test(text)))) {
+          const m = await discover(name, key);
+          if (m && m !== modelOf(name)) { models[name] = m; continue; }
+        }
+        const detail = errText(text);
+        reason = `HTTP ${res.status}${detail ? ": " + detail : ""}`;
+        if (res.status === 401) u.until[name] = Date.now() + 300000;
+        else if (res.status === 404 || res.status === 410) u.until[name] = Date.now() + 300000;
+        else if ([402, 403, 429].includes(res.status) || res.status >= 500) u.until[name] = Date.now() + cooldownFor(res, text);
+        else u.until[name] = Date.now() + 30000;
+        if (res.status === 401) reason = "key rejected. " + detail;
+        break;
+      } catch (e) { reason = e.message; u.until[name] = Date.now() + 30000; break; }
+    }
     s.fail++; u.reason[name] = reason; tried.push(`${name}: ${reason}`);
   }
   const err = new Error(ordered(u).length ? "All providers are resting right now." : "Add at least one free key first.");
@@ -120,7 +161,7 @@ function status(u) {
     limits: { perHour: PER_USER_HOURLY, usedThisHour: hourUsed, perDay: PER_USER_DAILY, usedToday: dayUsed },
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name);
-      return { name, model: p.model, keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), own: !!u.keys[name], coolingDown: resting(u, name),
+      return { name, model: modelOf(name), keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), own: !!u.keys[name], coolingDown: resting(u, name),
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
         requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
         sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
