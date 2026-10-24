@@ -15,31 +15,22 @@ const MAX_CHATS = 50;       // saved chats per person
 const MAX_MESSAGES = 200;   // messages kept per chat
 
 // Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
-// The full chat is still saved and shown on screen.
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
 const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
 
-// `url` = the chat endpoint. `model` = first model name to try.
-// `candidates` = other model names to try if one isn't available for your key (tried in order).
+// `model` = first model name to try. `candidates` = other names to try if one isn't available for your key.
+// If a provider says "use this slug instead", the app tries that name automatically.
 // `daily` = messages per day allowed on the SHARED key (set in Render as NAME_API_KEY).
 //           Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0 turns sharing off.
 // `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
-// `discover` = allowed to look up a model name from the provider's own list as a last resort.
 const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", candidates: ["llama-3.1-8b-instant", "openai/gpt-oss-20b", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, discover: true, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama3.1-8b", candidates: ["llama-3.3-70b", "qwen-3-32b", "gpt-oss-120b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, discover: true, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.1-70b-instruct", candidates: ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, discover: true, paid: false },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", candidates: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, discover: true, paid: false },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemma-3-27b-it:free", candidates: ["meta-llama/llama-3.3-70b-instruct:free", "mistralai/mistral-small-3.1-24b-instruct:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, discover: false, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", candidates: ["@cf/meta/llama-3.1-8b-instruct", "@cf/mistral/mistral-7b-instruct-v0.2"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, discover: false, paid: false },
+  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile", candidates: ["llama-3.1-8b-instant", "openai/gpt-oss-20b", "gemma2-9b-it"], keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
+  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", model: "llama3.1-8b", candidates: ["llama-3.3-70b", "qwen-3-32b", "gpt-oss-120b"], keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.1-70b-instruct", candidates: ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct"], keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
+  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", candidates: ["mistral-medium-latest", "open-mistral-nemo"], keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
+  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemma-3-27b-it:free", candidates: ["mistralai/mistral-small-3", "meta-llama/llama-3.3-70b-instruct:free"], keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
+  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", candidates: ["@cf/meta/llama-3.1-8b-instruct"], keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
-
-// Replacement names from the provider's own list are only chosen from the same family.
-const FAMILY = {
-  Groq: /llama.*(70b|8b)/i, Cerebras: /llama/i, NVIDIA: /llama.*instruct/i, Mistral: /mistral.*(small|medium|nemo)/i,
-};
-// Never pick these kinds of models for chat.
-const NOT_CHAT = /code|embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|learnlm|ocr|\br1\b|distill|reward|prompt/i;
 
 // AIs that can read photos. Photos are only sent to these.
 const VISION = ["Mistral"];
@@ -124,8 +115,7 @@ const listChats = (u) => Object.values(u.chats || {}).sort((a, b) => b.updated -
 
 // --- model names: remember the one that worked for each AI ---
 const models = {}; // AI name -> model name that last worked
-// Names to try for an AI, in order: the one that worked before, the default, then the candidates.
-const modelsFor = (name) => [...new Set([models[name], PROVIDERS[name].model, ...(PROVIDERS[name].candidates || [])].filter(Boolean))].slice(0, 5);
+const modelsFor = (name) => [...new Set([models[name], PROVIDERS[name].model, ...(PROVIDERS[name].candidates || [])].filter(Boolean))].slice(0, 6);
 
 function errText(text) {
   try {
@@ -139,20 +129,7 @@ const headersFor = (key) => ({ "Content-Type": "application/json", Authorization
 
 // Is this error about the model name (so trying another name may help)?
 const isModelError = (status, text) =>
-  status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported/i.test(text));
-
-// Ask the provider which models this key can use, and pick one from the same family.
-async function discover(name, key) {
-  if (!PROVIDERS[name].discover || !FAMILY[name]) return null;
-  try {
-    const url = PROVIDERS[name].url.replace("/chat/completions", "/models");
-    const res = await fetch(url, { headers: headersFor(key), signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return null;
-    const j = await res.json();
-    const ids = (j.data || j.models || []).map((m) => String(m.id || m.name || "").replace(/^models\//, "")).filter(Boolean);
-    return ids.find((id) => FAMILY[name].test(id) && !NOT_CHAT.test(id)) || null;
-  } catch { return null; }
-}
+  status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug/i.test(text));
 
 // --- failover logic, per user ---
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
@@ -196,7 +173,7 @@ function prepare(name, messages) {
   });
 }
 
-// Call one AI with one model name. Returns { ok, reply, tokens } or { ok:false, reason, cooldown, modelError }.
+// Call one AI with one model name. Returns { ok, reply, tokens } or { ok:false, reason, cooldown, modelError, suggested }.
 async function callModel(name, key, model, messages) {
   const p = PROVIDERS[name];
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -218,7 +195,10 @@ async function callModel(name, key, model, messages) {
       if (attempt === 0 && res.status === 429 && /token/i.test(text)) continue;
       const detail = errText(text);
       if (isModelError(res.status, text)) {
-        return { ok: false, modelError: true, reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
+        // Some providers name the right model in their error, e.g. "use this slug instead: x/y".
+        const m = /(?:slug instead|instead)\s*:?\s*([A-Za-z0-9@._\/:-]+)/i.exec(text);
+        return { ok: false, modelError: true, suggested: m ? m[1].replace(/[)"'.,]+$/, "") : null,
+          reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
       }
       if (res.status === 401) {
         return { ok: false, reason: "key rejected. Copy the key again from the provider and paste it into this AI's card, then Save.", cooldown: 300000 };
@@ -262,10 +242,10 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try each model name in turn until one works.
+    // Try each model name in turn, following any name the provider suggests, until one works.
     const queue = modelsFor(name);
     const seen = new Set();
-    let answered = null, last = null, discovered = false;
+    let answered = null, last = null;
     while (queue.length && !answered) {
       const model = queue.shift();
       if (seen.has(model)) continue;
@@ -273,11 +253,7 @@ async function ask(u, messages, only, test) {
       last = await callModel(name, key, model, messages);
       if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
       if (!last.modelError) break; // not a model-name problem, so other names won't help
-      if (queue.length === 0 && !discovered) {
-        discovered = true;
-        const d = await discover(name, key);
-        if (d && !seen.has(d)) queue.push(d);
-      }
+      if (last.suggested && !seen.has(last.suggested)) queue.unshift(last.suggested);
     }
 
     if (answered) {
