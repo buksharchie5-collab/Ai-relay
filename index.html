@@ -13,7 +13,9 @@
   button, input, textarea { font:inherit; color:inherit; }
   button { cursor:pointer; background:none; border:0; padding:0; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  textarea:focus, textarea:focus-visible, input:focus, input:focus-visible { outline:none; box-shadow:none; }
   .off { display:none !important; }
+  .hidden-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 
   .icon { width:44px; height:44px; flex:none; border-radius:50%; background:var(--raised); border:1px solid var(--line); display:grid; place-items:center; }
   .icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
@@ -57,6 +59,7 @@
   .setup li { margin:4px 0; }
   .msg { max-width:88%; white-space:pre-wrap; overflow-wrap:anywhere; -webkit-touch-callout:none; }
   .me { align-self:flex-end; padding:10px 15px; background:var(--field); border-radius:22px 22px 6px 22px; }
+  .pimg { display:block; max-width:220px; width:100%; border-radius:14px; margin-bottom:6px; }
   .bot { align-self:stretch; max-width:100%; padding:2px 0; }
   .bot code { padding:1px 5px; background:var(--field); border-radius:5px; font:13.5px ui-monospace, Menlo, monospace; }
   .bot pre { margin:8px 0; padding:12px; overflow-x:auto; background:var(--panel); border-radius:12px; white-space:pre; }
@@ -69,15 +72,21 @@
 
   .composer { padding:6px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
-  .box { max-width:720px; margin:0 auto; display:flex; align-items:flex-end; gap:6px; padding:6px; background:var(--field); border-radius:28px; }
-  textarea { flex:1; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; padding:9px 8px; }
+  .preview { max-width:720px; margin:0 auto 8px; padding-left:6px; }
+  .thumb { position:relative; display:inline-block; }
+  .thumb img { height:72px; width:auto; border-radius:12px; display:block; border:1px solid var(--line); }
+  .thumb button { position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; background:var(--ink); color:#000; font-size:15px; line-height:22px; text-align:center; }
+  .box { max-width:720px; margin:0 auto; display:flex; align-items:flex-end; gap:4px; padding:6px; background:var(--field); border-radius:28px; }
+  .plusbtn { width:38px; height:38px; flex:none; border-radius:50%; font-size:26px; line-height:1; color:var(--ink); display:grid; place-items:center; }
+  .plusbtn:hover { background:rgba(255,255,255,.08); }
+  textarea { flex:1; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; padding:9px 4px; }
   #send { width:38px; height:38px; flex:none; border-radius:50%; background:var(--ink); color:#000; display:grid; place-items:center; }
   #send svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
   #send:disabled { opacity:.3; }
 
   /* overlays */
   #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:20; }
-  #app.side-open #scrim, #app.drawer-open #scrim, #app.sheet-open #scrim { opacity:1; pointer-events:auto; }
+  #app.side-open #scrim, #app.drawer-open #scrim { opacity:1; pointer-events:auto; }
   #side, #drawer { position:absolute; top:0; bottom:0; width:min(320px, 84%); z-index:30; display:flex; flex-direction:column; transition:transform .3s cubic-bezier(.2,.8,.2,1); }
   #side { left:0; background:#000; border-right:1px solid var(--line); transform:translateX(-102%); padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px)); }
   #drawer { right:0; background:var(--panel); border-left:1px solid var(--line); transform:translateX(102%); padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px)); }
@@ -108,14 +117,24 @@
   .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
   .seg { display:inline-flex; margin-bottom:10px; }
 
-  /* long-press menu */
-  #sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
-  #sheet.show { pointer-events:auto; }
-  .sheetbody { width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); transition:transform .25s ease; }
-  #sheet.show .sheetbody { transform:none; }
+  /* bottom sheets: message menu, + menu, usage */
+  .sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
+  .sheet .bg { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .25s ease; }
+  .sheet.show { pointer-events:auto; }
+  .sheet.show .bg { opacity:1; }
+  .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); transition:transform .25s ease; }
+  .sheet.show .sheetbody { transform:none; }
   .sheetbody button { display:block; width:100%; padding:15px 8px; font-size:17px; text-align:center; border-bottom:1px solid var(--line); }
   .sheetbody button:last-child { border-bottom:0; color:var(--mute); }
   .sheetbody .danger { color:#f87171; }
+  .why { color:var(--warn); font-size:14px; line-height:1.45; padding:10px 8px 4px; }
+  .usebody { max-height:60vh; overflow-y:auto; padding:4px 2px; }
+  .ustat { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); font-size:15px; }
+  .ustat span { color:var(--mute); }
+  .urow { padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .urow b { display:block; font-size:15px; }
+  .urow span { color:var(--mute); }
+  .sheettitle { margin:6px 2px 4px; font-size:18px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -169,10 +188,14 @@
 
   <form id="f" class="composer">
     <div id="editbar" class="editbar off"><span>Editing message</span><button type="button" id="editcancel" class="btn ghost small">Cancel</button></div>
+    <div id="preview" class="preview off"></div>
     <div class="box">
+      <button id="plus" class="plusbtn" type="button" aria-label="Add photo or see usage">+</button>
       <textarea id="q" rows="1" placeholder="Ask AI Relay" aria-label="Message"></textarea>
       <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
+    <input type="file" id="fileLib" accept="image/*" class="hidden-input" aria-hidden="true">
+    <input type="file" id="fileCam" accept="image/*" capture="environment" class="hidden-input" aria-hidden="true">
   </form>
 
   <div id="scrim"></div>
@@ -193,7 +216,8 @@
     <div id="cards" style="overflow-y:auto;flex:1"></div>
   </aside>
 
-  <div id="sheet">
+  <div id="sheet" class="sheet">
+    <div class="bg" data-close></div>
     <div class="sheetbody">
       <button type="button" data-do="copy">Copy</button>
       <button type="button" data-do="edit">Edit</button>
@@ -201,16 +225,41 @@
       <button type="button" data-do="cancel">Cancel</button>
     </div>
   </div>
+
+  <div id="attach" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <button type="button" data-att="lib">Photo library</button>
+      <button type="button" data-att="cam">Camera</button>
+      <button type="button" data-att="usage">Usage</button>
+      <button type="button" data-att="prov">AI providers</button>
+      <div class="why off" id="attWhy"></div>
+      <button type="button" data-att="cancel">Cancel</button>
+    </div>
+  </div>
+
+  <div id="usage" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="sheettitle">Usage</div>
+      <div class="usebody" id="usebody"></div>
+      <button type="button" data-close>Done</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const log = $("log"), col = $("col"), q = $("q"), send = $("send"), app = $("app");
+const fileLib = $("fileLib"), fileCam = $("fileCam");
 const nf = n => n.toLocaleString();
 const getKey = () => localStorage.getItem("freeai-key");
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let history = [], chatId = newId(), st = null, busy = false, editing = null;
+const textOf = c => Array.isArray(c) ? ((c.find(p => p.type === "text") || {}).text || "") : String(c ?? "");
+const imgOf = c => Array.isArray(c) ? (((c.find(p => p.type === "image_url") || {}).image_url) || {}).url || null : null;
+const VISION = ["Gemini", "Mistral"]; // the only providers that can read photos
+let history = [], chatId = newId(), st = null, busy = false, editing = null, pendingImage = null, openedAt = 0;
 
 async function api(path, body) {
   const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
@@ -218,15 +267,30 @@ async function api(path, body) {
   return r.json();
 }
 const show = on => { $("login").classList.toggle("off", on); app.classList.toggle("off", !on); };
-function panel(cls) { app.classList.remove("side-open", "drawer-open", "sheet-open"); if (cls) app.classList.add(cls); }
+function panel(cls) { app.classList.remove("side-open", "drawer-open"); if (cls) app.classList.add(cls); }
 const closeAll = () => panel(null);
-function signOut() { localStorage.removeItem("freeai-key"); st = null; history = []; chatId = newId(); closeAll(); redraw(false); show(false); }
+function closeSheets() { document.querySelectorAll(".sheet.show").forEach(s => s.classList.remove("show")); }
+function openSheetEl(id) { closeAll(); closeSheets(); openedAt = Date.now(); $(id).classList.add("show"); }
+const recentlyOpened = () => Date.now() - openedAt < 400; // ignore the tap that opened a sheet
+document.addEventListener("click", e => { if (e.target.dataset && e.target.dataset.close !== undefined && !recentlyOpened()) closeSheets(); });
+
+function signOut() { localStorage.removeItem("freeai-key"); st = null; history = []; chatId = newId(); closeAll(); closeSheets(); clearPending(); redraw(false); show(false); }
 async function refresh() { if (!getKey()) return; try { st = await api("/api/status"); render(); } catch {} }
 
 // --- tiny safe formatter: code blocks, inline code, bold, bullets ---
 const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : esc(s)
   .replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
   .replace(/^#{1,6}\s+(.+)$/gm, "<strong>$1</strong>").replace(/^\s*[-*]\s+/gm, "• ")).join("");
+
+// --- photo support: says exactly why a photo can't be sent right now ---
+function photoStatus() {
+  if (!st) return { ok: false, why: "Still loading your providers. Try again in a second." };
+  const vis = st.providers.filter(p => VISION.includes(p.name));
+  const keyed = vis.filter(p => p.hasKey);
+  if (!keyed.length) return { ok: false, why: "Photos only work with Gemini or Mistral, because those are the only free AIs here that can read images. Groq, Cerebras, OpenRouter, NVIDIA and SambaNova can only read text. To fix it, tap AI providers below and add a free Gemini or Mistral key." };
+  if (keyed.every(p => p.coolingDown)) return { ok: false, why: "Gemini and Mistral are resting right now, so they can't read photos. They come back on their own in a few minutes. You can also add another key." };
+  return { ok: true };
+}
 
 // --- providers panel ---
 function render() {
@@ -261,6 +325,18 @@ $("drawer").addEventListener("click", async e => {
   } catch {}
 });
 
+// --- usage ---
+function renderUsage() {
+  if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
+  const L = st.limits, live = st.providers.filter(p => p.hasKey);
+  const rows = live.length ? live.map(p => `<div class="urow"><b>${p.name}</b><span>${nf(p.requests)} answered · ${nf(p.tokens)} tokens · ${p.errors} errors${p.own ? " · your key" : (p.sharedLeftToday !== null ? " · " + nf(p.sharedLeftToday) + " shared left today" : "")}</span></div>`).join("")
+    : `<p class="hint">No providers yet. Add a key in AI providers.</p>`;
+  $("usebody").innerHTML = `<div class="ustat"><span>This hour</span><b>${L.usedThisHour} / ${L.perHour}</b></div>
+    <div class="ustat"><span>Today</span><b>${L.usedToday} / ${L.perDay}</b></div>
+    <p class="hint" style="margin:10px 0">These limits apply to shared keys. Messages sent with your own key aren't capped here.</p>${rows}`;
+}
+async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
+
 // --- navigation ---
 $("menu").onclick = () => panel("side-open");
 $("sideclose").onclick = closeAll;
@@ -273,7 +349,52 @@ $("sideNew").onclick = newChat;
 $("newchat").onclick = newChat;
 $("sideOut").onclick = signOut;
 $("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeAll(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAll(); closeSheets(); } });
+
+// --- + menu: photo library, camera, usage, providers ---
+$("plus").onclick = () => { $("attWhy").classList.add("off"); openSheetEl("attach"); };
+$("attach").addEventListener("click", e => {
+  const a = e.target.dataset.att;
+  if (!a || recentlyOpened()) return;
+  if (a === "usage") return openUsage();
+  if (a === "prov") { closeSheets(); return panel("drawer-open"); }
+  if (a === "cancel") return closeSheets();
+  const ps = photoStatus();
+  if (!ps.ok) { $("attWhy").textContent = ps.why; $("attWhy").classList.remove("off"); return; }
+  $("attWhy").classList.add("off");
+  closeSheets();
+  (a === "lib" ? fileLib : fileCam).click();
+});
+
+// Shrink photos before sending so they stay fast and small
+function readPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+async function attachFile(f) {
+  if (!f) return;
+  try { setPending(await readPhoto(f)); q.focus(); }
+  catch { add("note", "Couldn't read that photo. Try another one."); }
+}
+fileLib.onchange = e => { attachFile(e.target.files[0]); e.target.value = ""; };
+fileCam.onchange = e => { attachFile(e.target.files[0]); e.target.value = ""; };
+function setPending(d) {
+  pendingImage = d;
+  $("preview").innerHTML = `<div class="thumb"><img src="${d}" alt="Attached photo"><button type="button" id="rmthumb" aria-label="Remove photo">×</button></div>`;
+  $("preview").classList.remove("off");
+}
+function clearPending() { pendingImage = null; $("preview").innerHTML = ""; $("preview").classList.add("off"); }
+$("preview").addEventListener("click", e => { if (e.target.id === "rmthumb") clearPending(); });
 
 // --- saved chats ---
 async function loadChats() {
@@ -305,18 +426,23 @@ async function openChat(id) {
     redraw(true); closeAll(); loadChats();
   } catch {}
 }
-function newChat() { history = []; chatId = newId(); editing = null; cancelEdit(false); redraw(true); closeAll(); loadChats(); }
+function newChat() { history = []; chatId = newId(); editing = null; cancelEdit(false); clearPending(); redraw(true); closeAll(); loadChats(); }
 async function syncChat() {
   try { await api("/api/chats/sync", { id: chatId, messages: history.map(({ role, content, meta }) => ({ role, content, meta })) }); loadChats(); } catch {}
 }
 
 // --- messages ---
-function add(cls, text, meta, idx, quiet) {
+function add(cls, content, meta, idx, quiet) {
   $("empty").classList.add("off");
   const d = document.createElement("div"); d.className = "msg " + cls;
   if (idx !== undefined) d.dataset.i = idx;
-  if (cls === "bot") { d.innerHTML = `<div class="body">${fmt(text)}</div>` + (meta ? `<div class="meta">${esc(meta)}</div>` : ""); }
-  else d.textContent = text;
+  const txt = textOf(content), img = imgOf(content);
+  if (cls === "bot") {
+    d.innerHTML = `<div class="body">${fmt(txt)}</div>` + (meta ? `<div class="meta">${esc(meta)}</div>` : "");
+  } else {
+    if (img) { const im = document.createElement("img"); im.src = img; im.className = "pimg"; im.alt = "Photo"; d.appendChild(im); }
+    if (txt) d.appendChild(document.createTextNode(txt));
+  }
   col.appendChild(d);
   if (!quiet) toBottom();
   return d;
@@ -342,21 +468,30 @@ q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.
 
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
-  const text = q.value.trim(); if (!text || busy) return;
+  const text = q.value.trim();
+  if ((!text && !pendingImage) || busy) return;
+  if (pendingImage) {
+    const ps = photoStatus();
+    if (!ps.ok) { add("note", ps.why + " Your photo is still attached."); return; }
+  }
   if (editing !== null) { history.length = editing; editing = null; $("editbar").classList.add("off"); redraw(false); }
-  busy = true; send.disabled = true; q.value = ""; q.style.height = "auto";
-  history.push({ role: "user", content: text });
-  const mine = add("me", text, "", history.length - 1);
+  const img = pendingImage;
+  busy = true; send.disabled = true; q.value = ""; q.style.height = "auto"; clearPending();
+  const content = img ? [{ type: "text", text: text || "What's in this photo?" }, { type: "image_url", image_url: { url: img } }] : text;
+  history.push({ role: "user", content });
+  const mine = add("me", content, "", history.length - 1);
   const wait = add("thinking", "Thinking…");
   try {
-    const d = await api("/api/chat", { chatId, messages: history.map(({ role, content }) => ({ role, content })) });
+    const d = await api("/api/chat", { chatId, messages: history.map(m => ({ role: m.role, content: m.content })) });
     if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
     const meta = d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : "");
     history.push({ role: "assistant", content: d.reply, meta }); wait.remove();
     toStart(add("bot", d.reply, meta, history.length - 1, true)); // start of the reply, not the end
     loadChats();
   } catch (err) {
-    history.pop(); wait.remove(); mine.remove(); q.value = text; q.dispatchEvent(new Event("input"));
+    history.pop(); wait.remove(); mine.remove();
+    q.value = text; q.dispatchEvent(new Event("input"));
+    if (img) setPending(img);
     add("note", err.message + " Your message is back in the box.");
   }
   busy = false; send.disabled = false; refresh();
@@ -364,37 +499,34 @@ $("f").addEventListener("submit", async e => {
 
 // --- hold a message to copy / edit / delete ---
 let lp = null, lpAt = null, target = null, sheetAt = 0;
-function openSheet(el) {
+function openMsgSheet(el) {
   const i = Number(el.dataset.i), m = history[i]; if (!m) return;
   target = i; sheetAt = Date.now();
   const mine = m.role === "user";
-  document.querySelector('[data-do="edit"]').classList.toggle("off", !mine);
-  document.querySelector('[data-do="del"]').classList.toggle("off", !mine);
-  app.classList.add("sheet-open"); $("sheet").classList.add("show");
+  document.querySelector('#sheet [data-do="edit"]').classList.toggle("off", !mine);
+  document.querySelector('#sheet [data-do="del"]').classList.toggle("off", !mine);
+  openSheetEl("sheet");
 }
-function closeSheet() { $("sheet").classList.remove("show"); app.classList.remove("sheet-open"); }
 col.addEventListener("pointerdown", e => {
   const m = e.target.closest(".msg[data-i]"); if (!m) return;
   lpAt = { x: e.clientX, y: e.clientY }; clearTimeout(lp);
-  lp = setTimeout(() => { lp = null; navigator.vibrate?.(12); openSheet(m); }, 450);
+  lp = setTimeout(() => { lp = null; navigator.vibrate?.(12); openMsgSheet(m); }, 450);
 });
 col.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - lpAt.x, e.clientY - lpAt.y) > 10) { clearTimeout(lp); lp = null; } });
 ["pointerup", "pointercancel", "pointerleave"].forEach(ev => col.addEventListener(ev, () => { clearTimeout(lp); lp = null; }));
-col.addEventListener("contextmenu", e => { const m = e.target.closest(".msg[data-i]"); if (m) { e.preventDefault(); clearTimeout(lp); openSheet(m); } });
+col.addEventListener("contextmenu", e => { const m = e.target.closest(".msg[data-i]"); if (m) { e.preventDefault(); clearTimeout(lp); openMsgSheet(m); } });
 
 $("sheet").addEventListener("click", async e => {
   if (Date.now() - sheetAt < 400) return; // ignore the finger lifting from the long-press
-  if (e.target.id === "sheet") return closeSheet();
   const act = e.target.dataset.do; if (!act) return;
   const m = history[target];
-  if (act === "cancel") return closeSheet();
-  if (act === "copy" && m) { try { await navigator.clipboard.writeText(m.content); } catch {} }
-  if (act === "edit" && m) { editing = target; q.value = m.content; q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
+  closeSheets();
+  if (act === "copy" && m) { try { await navigator.clipboard.writeText(textOf(m.content)); } catch {} }
+  if (act === "edit" && m) { editing = target; q.value = textOf(m.content); q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
   if (act === "del" && m) {
     const n = history[target + 1]?.role === "assistant" ? 2 : 1;
     history.splice(target, n); cancelEdit(false); redraw(false); syncChat();
   }
-  closeSheet();
 });
 
 // --- sign in ---
