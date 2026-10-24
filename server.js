@@ -4,12 +4,15 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+// Accounts and chats are saved as local files in this folder.
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
 
 // Fair-use limits for people using the shared keys (people with their own keys aren't capped).
 const PER_USER_HOURLY = 20; // messages per person per hour
 const PER_USER_DAILY = 70;  // messages per person per day
+const MAX_CHATS = 50;       // saved chats per person
+const MAX_MESSAGES = 200;   // messages kept per chat
 
 // Free-tier models change often: edit `model` here if a provider retires one.
 // (If one is retired, the app also tries to find a working model by itself.)
@@ -40,25 +43,53 @@ function sharedLeft(name) {
 // True if at least one shared provider still has messages left today
 const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
 
-// --- per-user storage: one encrypted file per access key (the key itself is never stored) ---
+// --- storage: one encrypted file per access key (the key itself is never stored) ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
 const fileOf = (t) => path.join(DIR, sha("id:" + t).toString("hex") + ".bin");
-const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, hour: { start: 0, n: 0 }, day: { day: "", n: 0 } });
 
-function loadUser(t) {
+async function readBlob(t) {
+  try { return fs.readFileSync(fileOf(t)); } catch { return null; }
+}
+async function writeBlob(t, buf) {
+  fs.writeFileSync(fileOf(t), buf);
+}
+
+const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, hour: { start: 0, n: 0 }, day: { day: "", n: 0 }, chats: {} });
+
+async function loadUser(t) {
   try {
-    const b = fs.readFileSync(fileOf(t));
+    const b = await readBlob(t);
+    if (!b) return null;
     const d = crypto.createDecipheriv("aes-256-gcm", sha("enc:" + t), b.subarray(0, 12));
     d.setAuthTag(b.subarray(12, 28));
     return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString());
   } catch { return null; }
 }
-function saveUser(t, u) {
+async function saveUser(t, u) {
   const iv = crypto.randomBytes(12);
   const c = crypto.createCipheriv("aes-256-gcm", sha("enc:" + t), iv);
   const enc = Buffer.concat([c.update(JSON.stringify(u)), c.final()]);
-  fs.writeFileSync(fileOf(t), Buffer.concat([iv, c.getAuthTag(), enc]));
+  await writeBlob(t, Buffer.concat([iv, c.getAuthTag(), enc]));
 }
+
+// --- saved chats ---
+function putChat(u, id, messages) {
+  if (!id || !Array.isArray(messages)) return;
+  const key = String(id).slice(0, 40);
+  u.chats ||= {};
+  if (!messages.length) { delete u.chats[key]; return; }
+  const clean = messages.slice(-MAX_MESSAGES).map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: String(m.content || "").slice(0, 20000),
+    meta: String(m.meta || "").slice(0, 200),
+  }));
+  const first = clean.find((m) => m.role === "user");
+  const title = (first ? first.content : "New chat").replace(/\s+/g, " ").trim().slice(0, 48) || "New chat";
+  u.chats[key] = { id: key, title, updated: Date.now(), messages: clean };
+  const sorted = Object.values(u.chats).sort((a, b) => b.updated - a.updated);
+  for (const old of sorted.slice(MAX_CHATS)) delete u.chats[old.id];
+}
+const listChats = (u) => Object.values(u.chats || {}).sort((a, b) => b.updated - a.updated).map(({ id, title, updated }) => ({ id, title, updated }));
 
 // --- model auto-repair: if a provider retires a model, find a working one from its live list ---
 const models = {}; // provider -> model found automatically
@@ -172,7 +203,7 @@ function status(u) {
 const signups = {}; // simple per-network limit on new keys
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
-http.createServer(async (req, res) => {
+async function route(req, res) {
   if (!req.url.startsWith("/api/")) {
     return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
       if (err) { res.writeHead(404); return res.end("Not found"); }
@@ -180,7 +211,7 @@ http.createServer(async (req, res) => {
     });
   }
   let raw = "";
-  for await (const c of req) { raw += c; if (raw.length > 1e6) return send(res, 413, { error: "too large" }); }
+  for await (const c of req) { raw += c; if (raw.length > 2e6) return send(res, 413, { error: "too large" }); }
   let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
 
   if (req.url === "/api/signup" && req.method === "POST") {
@@ -189,22 +220,39 @@ http.createServer(async (req, res) => {
     if (hits.length >= 10) return send(res, 429, { error: "Too many new keys from your network. Try again in an hour." });
     signups[ip] = [...hits, Date.now()];
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
-    saveUser(token, newUser());
+    await saveUser(token, newUser());
     return send(res, 200, { token });
   }
   const token = req.headers["x-access-key"] || "";
-  const u = token ? loadUser(token) : null;
+  const u = token ? await loadUser(token) : null;
   if (!u) return send(res, 401, { error: "Key not recognized" });
 
   if (req.url === "/api/status") return send(res, 200, status(u));
+
+  if (req.url === "/api/chats") return send(res, 200, listChats(u));
+  if (req.url === "/api/chats/open") {
+    const c = u.chats?.[String(body.id || "").slice(0, 40)];
+    return c ? send(res, 200, c) : send(res, 404, { error: "Chat not found" });
+  }
+  if (req.url === "/api/chats/delete") {
+    if (u.chats) delete u.chats[String(body.id || "").slice(0, 40)];
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+  if (req.url === "/api/chats/sync") {
+    putChat(u, body.id, body.messages);
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+
   if (req.url === "/api/key" && PROVIDERS[body.provider]) {
     if (body.key) { u.keys[body.provider] = String(body.key).trim(); delete u.until[body.provider]; u.reason[body.provider] = ""; }
     else { delete u.keys[body.provider]; if (u.selected === body.provider) u.selected = "auto"; }
-    saveUser(token, u); return send(res, 200, status(u));
+    await saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/select") {
     if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
-    saveUser(token, u); return send(res, 200, status(u));
+    await saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/chat" && Array.isArray(body.messages)) {
     const hasOwn = Object.values(u.keys).some(Boolean);
@@ -227,9 +275,17 @@ http.createServer(async (req, res) => {
     try {
       const out = await ask(u, body.messages);
       if (!hasOwn) d.n++;
-      saveUser(token, u);
+      putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
+      await saveUser(token, u);
       return send(res, 200, out);
-    } catch (e) { saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
+    } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
   }
   send(res, 404, { error: "not found" });
+}
+
+http.createServer((req, res) => {
+  route(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) send(res, 500, { error: "Something went wrong on the server. Try again." });
+  });
 }).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
