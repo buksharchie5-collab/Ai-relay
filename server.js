@@ -19,10 +19,13 @@ const PROVIDERS = {
   Gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", model: "gemini-2.5-flash", keyUrl: "https://aistudio.google.com/apikey", daily: 200 },
   OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "meta-llama/llama-3.3-70b-instruct:free", keyUrl: "https://openrouter.ai/keys", daily: 45 },
   Mistral: { url: "https://api.mistral.ai/v1/chat/completions", model: "mistral-small-latest", keyUrl: "https://console.mistral.ai", daily: 200 },
+  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.3-70b-instruct", keyUrl: "https://build.nvidia.com", daily: 500 },
+  SambaNova: { url: "https://api.sambanova.ai/v1/chat/completions", model: "Meta-Llama-3.3-70B-Instruct", keyUrl: "https://cloud.sambanova.ai", daily: 20 },
 };
 
-// Shared keys come from Render's environment, e.g. GROQ_API_KEY
+// Shared keys come from Render's environment, e.g. GROQ_API_KEY, NVIDIA_API_KEY, SAMBANOVA_API_KEY
 const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
+// Optional override, e.g. SAMBANOVA_DAILY_LIMIT
 const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
 
 // Shared daily counters, per provider (reset at midnight UTC)
@@ -117,7 +120,7 @@ function status(u) {
     limits: { perHour: PER_USER_HOURLY, usedThisHour: hourUsed, perDay: PER_USER_DAILY, usedToday: dayUsed },
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name);
-      return { name, model: p.model, keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), coolingDown: resting(u, name),
+      return { name, model: p.model, keyUrl: p.keyUrl, hasKey: !!(u.keys[name] || envKey(name)), own: !!u.keys[name], coolingDown: resting(u, name),
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
         requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
         sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
