@@ -4,8 +4,15 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+// Accounts are saved in Upstash Redis when its two env vars are set (survives redeploys).
+// Otherwise they go to local files, which Render's free plan erases on every restart.
+const UP_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const USE_REDIS = !!(UP_URL && UP_TOKEN);
+
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
+if (!USE_REDIS) console.log("Note: no Upstash set, so accounts are not kept between deploys on Render's free plan.");
 
 // Fair-use limits for people using the shared keys (people with their own keys aren't capped).
 const PER_USER_HOURLY = 20; // messages per person per hour
@@ -40,24 +47,50 @@ function sharedLeft(name) {
 // True if at least one shared provider still has messages left today
 const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
 
-// --- per-user storage: one encrypted file per access key (the key itself is never stored) ---
+// --- storage: Upstash Redis if configured, otherwise local files ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
-const fileOf = (t) => path.join(DIR, sha("id:" + t).toString("hex") + ".bin");
+const idOf = (t) => sha("id:" + t).toString("hex");
+const fileOf = (t) => path.join(DIR, idOf(t) + ".bin");
+
+async function redis(cmd) {
+  const r = await fetch(UP_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${UP_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(cmd),
+    signal: AbortSignal.timeout(10000),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error("storage: " + j.error);
+  return j.result;
+}
+async function readBlob(t) {
+  if (USE_REDIS) {
+    const v = await redis(["GET", "relay:" + idOf(t)]);
+    return v ? Buffer.from(v, "base64") : null;
+  }
+  try { return fs.readFileSync(fileOf(t)); } catch { return null; }
+}
+async function writeBlob(t, buf) {
+  if (USE_REDIS) return redis(["SET", "relay:" + idOf(t), buf.toString("base64")]);
+  fs.writeFileSync(fileOf(t), buf);
+}
+
 const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, hour: { start: 0, n: 0 }, day: { day: "", n: 0 } });
 
-function loadUser(t) {
+async function loadUser(t) {
   try {
-    const b = fs.readFileSync(fileOf(t));
+    const b = await readBlob(t);
+    if (!b) return null;
     const d = crypto.createDecipheriv("aes-256-gcm", sha("enc:" + t), b.subarray(0, 12));
     d.setAuthTag(b.subarray(12, 28));
     return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString());
   } catch { return null; }
 }
-function saveUser(t, u) {
+async function saveUser(t, u) {
   const iv = crypto.randomBytes(12);
   const c = crypto.createCipheriv("aes-256-gcm", sha("enc:" + t), iv);
   const enc = Buffer.concat([c.update(JSON.stringify(u)), c.final()]);
-  fs.writeFileSync(fileOf(t), Buffer.concat([iv, c.getAuthTag(), enc]));
+  await writeBlob(t, Buffer.concat([iv, c.getAuthTag(), enc]));
 }
 
 // --- model auto-repair: if a provider retires a model, find a working one from its live list ---
@@ -172,7 +205,7 @@ function status(u) {
 const signups = {}; // simple per-network limit on new keys
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
-http.createServer(async (req, res) => {
+async function route(req, res) {
   if (!req.url.startsWith("/api/")) {
     return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
       if (err) { res.writeHead(404); return res.end("Not found"); }
@@ -189,22 +222,22 @@ http.createServer(async (req, res) => {
     if (hits.length >= 10) return send(res, 429, { error: "Too many new keys from your network. Try again in an hour." });
     signups[ip] = [...hits, Date.now()];
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
-    saveUser(token, newUser());
+    await saveUser(token, newUser());
     return send(res, 200, { token });
   }
   const token = req.headers["x-access-key"] || "";
-  const u = token ? loadUser(token) : null;
+  const u = token ? await loadUser(token) : null;
   if (!u) return send(res, 401, { error: "Key not recognized" });
 
   if (req.url === "/api/status") return send(res, 200, status(u));
   if (req.url === "/api/key" && PROVIDERS[body.provider]) {
     if (body.key) { u.keys[body.provider] = String(body.key).trim(); delete u.until[body.provider]; u.reason[body.provider] = ""; }
     else { delete u.keys[body.provider]; if (u.selected === body.provider) u.selected = "auto"; }
-    saveUser(token, u); return send(res, 200, status(u));
+    await saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/select") {
     if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
-    saveUser(token, u); return send(res, 200, status(u));
+    await saveUser(token, u); return send(res, 200, status(u));
   }
   if (req.url === "/api/chat" && Array.isArray(body.messages)) {
     const hasOwn = Object.values(u.keys).some(Boolean);
@@ -227,9 +260,16 @@ http.createServer(async (req, res) => {
     try {
       const out = await ask(u, body.messages);
       if (!hasOwn) d.n++;
-      saveUser(token, u);
+      await saveUser(token, u);
       return send(res, 200, out);
-    } catch (e) { saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
+    } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
   }
   send(res, 404, { error: "not found" });
+}
+
+http.createServer((req, res) => {
+  route(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) send(res, 500, { error: "Something went wrong on the server. Try again." });
+  });
 }).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
