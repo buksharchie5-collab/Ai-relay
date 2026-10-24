@@ -29,17 +29,24 @@
   input[type=password] { flex:1; min-width:0; padding:11px 12px; font-size:16px; background:var(--field); border:1px solid var(--line); border-radius:10px; }
   input::placeholder, textarea::placeholder { color:#777; }
 
-  /* sign in */
-  #login { min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:20px; }
-  .card { width:100%; max-width:420px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:28px; }
-  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
-  .logo { width:30px; height:30px; flex:none; border-radius:9px; background:linear-gradient(135deg,#4f7cff,#38bdf8); color:#fff; display:grid; place-items:center; font-weight:700; font-size:16px; }
-  .card h1 { font-size:24px; line-height:1.25; margin:18px 0 8px; }
-  .card p { color:var(--mute); margin:0 0 16px; font-size:15px; }
-  .card > .btn { width:100%; padding:12px; font-size:15px; }
-  .or { text-align:center; color:var(--mute); font-size:13px; margin:14px 0; }
+  /* sign in: separate sections */
+  #login { min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:28px 18px; }
+  .hero { width:100%; max-width:440px; text-align:center; padding:8px 0 4px; }
+  .hero .logo { width:52px; height:52px; margin:0 auto 14px; border-radius:16px; font-size:24px; }
+  .hero h1 { font-size:26px; line-height:1.2; margin:0 0 8px; font-weight:700; }
+  .hero p { color:var(--mute); margin:0; font-size:15px; }
+  .panel { width:100%; max-width:440px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  .panel h2 { font-size:17px; margin:0 0 4px; font-weight:700; }
+  .panel .sub { color:var(--mute); font-size:14px; margin:0 0 14px; }
+  .panel .btn { width:100%; padding:13px; font-size:15px; }
+  .divider { display:flex; align-items:center; gap:10px; color:var(--mute); font-size:13px; margin:14px 0; }
+  .divider::before, .divider::after { content:""; flex:1; height:1px; background:var(--line); }
+  .steps { width:100%; max-width:440px; padding:4px 6px; }
+  .steps ol { margin:0; padding-left:20px; color:var(--mute); font-size:14px; }
+  .steps li { margin:6px 0; }
+  .steps b { color:var(--ink); font-weight:600; }
   code.key { display:block; padding:12px; margin:0 0 12px; background:var(--field); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
-  .err { color:var(--warn); font-size:14px; min-height:20px; margin:10px 0 0; }
+  .err { width:100%; max-width:440px; color:var(--warn); font-size:14px; min-height:20px; margin:0; text-align:center; }
 
   /* app shell */
   #app { position:relative; height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
@@ -139,22 +146,48 @@
 <body>
 
 <div id="login" class="off">
-  <div class="card">
-    <div class="brand"><span class="logo">⇄</span>AI Relay</div>
-    <h1>When one free AI runs out, the next picks up</h1>
-    <p>AI Relay passes your chat to the next AI when one hits its limit, so you keep going. Your personal key brings your setup back on any device.</p>
-    <div id="made" class="off">
-      <code class="key" id="newkey"></code>
-      <div class="row" style="margin-bottom:12px"><button id="copy2" class="btn ghost" type="button">Copy key</button><button id="go" class="btn" type="button">I saved it, continue</button></div>
-      <p>Save this now, for example in a password manager. It cannot be recovered.</p>
+  <header class="hero">
+    <div class="logo brand-logo"><span class="logo">⇄</span></div>
+    <h1>AI Relay</h1>
+    <p>When one free AI runs out, the next picks up.</p>
+  </header>
+
+  <section class="panel" id="choose">
+    <h2>New here?</h2>
+    <p class="sub">Create a personal key. It saves your setup and works on any device.</p>
+    <button id="create" type="button" class="btn">Create my key</button>
+  </section>
+
+  <div class="divider">or</div>
+
+  <section class="panel" id="returning">
+    <h2>Already have a key?</h2>
+    <p class="sub">Paste the personal key you saved.</p>
+    <div class="row">
+      <input id="have" type="password" placeholder="fa-…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key">
+      <button id="enter" type="button" class="btn">Sign in</button>
     </div>
-    <div id="choose">
-      <button id="create" type="button" class="btn">Get started</button>
-      <div class="or">or sign in with your key</div>
-      <div class="row"><input id="have" type="password" placeholder="Paste your personal key" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key"><button id="enter" type="button" class="btn ghost">Sign in</button></div>
+  </section>
+
+  <section class="panel off" id="made">
+    <h2>Save your key</h2>
+    <p class="sub">Keep this somewhere safe, like a password manager. It cannot be recovered if you lose it.</p>
+    <code class="key" id="newkey"></code>
+    <div class="row">
+      <button id="copy2" class="btn ghost" type="button">Copy</button>
+      <button id="go" class="btn" type="button">I saved it</button>
     </div>
-    <p id="lerr" class="err" role="alert"></p>
-  </div>
+  </section>
+
+  <section class="steps">
+    <ol>
+      <li><b>Create your key</b> and save it.</li>
+      <li><b>Add a free AI key</b> from the AI providers panel.</li>
+      <li><b>Start chatting.</b> If one AI runs out, the next one answers.</li>
+    </ol>
+  </section>
+
+  <p id="lerr" class="err" role="alert"></p>
 </div>
 
 <div id="app" class="off">
@@ -284,7 +317,7 @@ const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<
 
 // --- photo support: says exactly why a photo can't be sent right now ---
 function photoStatus() {
-  if (!st) return { ok: false, why: "Still loading your AIs. Try again in a second." };
+  if (!st) return { ok: false, why: "Still loading your providers. Try again in a second." };
   const keyed = st.providers.filter(p => VISION.includes(p.name) && p.hasKey);
   if (!keyed.length) return { ok: false, why: "Photos only work with Mistral right now, because it's the free AI here that can read images. To fix it, tap AI providers below and add a free Mistral key." };
   if (keyed.every(p => p.coolingDown)) return { ok: false, why: "Mistral is resting right now, so it can't read photos. It comes back on its own in a few minutes." };
@@ -307,15 +340,14 @@ function render() {
       <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a free key"}</a></div>${keyBox}</div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
-    const needsOwn = p.paid && !p.own && p.sharedLeftToday === 0;
-    const limit = p.own ? "your own key · no limit" : needsOwn ? "paid AI · needs your own key" : `${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today`;
+    const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
     const shared = !p.own
       ? (p.paid ? `<div class="sub" style="margin-top:6px">Paid AI · add your own key to use it. <a href="${p.keyUrl}" target="_blank" rel="noopener">Get one</a></div>${keyBox}`
                : `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}`)
       : "";
     const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
     return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
-      <div class="st">${stTxt}</div><div class="sub">${limit}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors</div>${shared}${tr}
+      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${shared}${tr}
       <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use only this one"}</button><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
   }).join("");
 }
@@ -341,11 +373,10 @@ $("drawer").addEventListener("click", async e => {
 function renderUsage() {
   if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
   const live = st.providers.filter(p => p.hasKey);
-  const rows = live.length ? live.map(p => {
-    if (p.own) return `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`;
-    if (p.paid && p.sharedLeftToday === 0) return `<div class="urow"><b>${p.name}</b><span>Paid AI · needs your own key</span></div>`;
-    return `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`;
-  }).join("") : `<p class="hint">No AIs added yet. Add a key in AI providers.</p>`;
+  const rows = live.length ? live.map(p => p.own
+    ? `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+    : `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+  ).join("") : `<p class="hint">No AIs added yet. Add a key in AI providers.</p>`;
   $("usebody").innerHTML = `<p class="hint" style="margin:6px 0 10px">Each AI has its own limit on the shared keys. Switching to another AI gives you that AI's full allowance.</p>${rows}`;
 }
 async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
@@ -552,7 +583,9 @@ $("create").onclick = async () => {
     const r = await (await fetch("/api/signup", { method: "POST" })).json();
     if (!r.token) throw new Error(r.error || "Could not create a key");
     localStorage.setItem("freeai-key", r.token);
-    $("newkey").textContent = r.token; $("choose").classList.add("off"); $("made").classList.remove("off");
+    $("newkey").textContent = r.token;
+    $("choose").classList.add("off"); $("returning").classList.add("off"); $("made").classList.remove("off");
+    document.querySelector(".divider").classList.add("off");
   } catch (e) { $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message; }
 };
 $("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
@@ -560,7 +593,7 @@ $("go").onclick = async () => { show(true); await refresh(); loadChats(); };
 $("enter").onclick = async () => {
   const k = $("have").value.trim();
   $("lerr").textContent = "";
-  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Get started to make one."; return; }
+  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Create my key to make one."; return; }
   if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
   if (notServed()) { $("lerr").textContent = serverMsg; return; }
   localStorage.setItem("freeai-key", k);
