@@ -262,7 +262,7 @@ $("f").addEventListener("submit", async e => {
   const wait = add("thinking", "Thinking…");
   try {
     const d = await api("/api/chat", { messages: history });
-    if (d.error) throw new Error(d.error);
+        if (d.error) throw new Error(d.error + (d.tried?.length ? " (" + d.tried.join("; ") + ")" : ""));
     history.push({ role: "assistant", content: d.reply }); wait.remove();
     add("bot", d.reply, d.provider + " · " + d.model + (d.fellBack ? " · your pinned choice was unavailable" : ""));
   } catch (err) { history.pop(); wait.remove(); add("note", err.message + " Open the provider list at the top to add keys or check wait times."); }
