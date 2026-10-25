@@ -20,6 +20,7 @@ const PER_USER_HOURLY = 20; // messages per person per AI per hour
 const PER_USER_DAILY = 70;  // messages per person per AI per day
 const MAX_CHATS = 50;       // saved chats per person
 const MAX_MESSAGES = 200;   // messages kept per chat
+const MAX_KEYS_PER_NETWORK_PER_DAY = 5; // personal keys one network can create per day (resets at midnight UTC)
 
 // Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
@@ -158,6 +159,33 @@ async function readBlob(t) {
 async function writeBlob(t, buf) {
   if (USE_REDIS) return redis(["SET", "relay:" + idOf(t), buf.toString("base64")]);
   fs.writeFileSync(fileOf(t), buf);
+}
+
+// Counts how many personal keys a network has created today. The counter expires at midnight UTC.
+const memCounts = {};
+async function bumpNetworkCountToday(ip) {
+  const day = today();
+  const id = sha("net:" + day + ":" + ip).toString("hex");
+  if (USE_REDIS) {
+    const key = "netcount:" + id;
+    const count = Number(await redis(["INCR", key]));
+    if (count === 1) await redis(["EXPIRE", key, String(secondsUntilMidnightUTC())]);
+    return count;
+  }
+  memCounts[id] = (memCounts[id] || 0) + 1;
+  return memCounts[id];
+}
+function secondsUntilMidnightUTC() {
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
+}
+// Friendly reset time, e.g. "tomorrow at 00:00 UTC (in 7 hours)".
+function resetMessage() {
+  const secs = secondsUntilMidnightUTC();
+  const hours = Math.floor(secs / 3600), mins = Math.ceil((secs % 3600) / 60);
+  const when = hours > 0 ? `${hours} hour${hours === 1 ? "" : "s"}${mins ? " " + mins + " min" : ""}` : `${mins} min`;
+  return `You've reached the limit of ${MAX_KEYS_PER_NETWORK_PER_DAY} personal keys from this network today. You can create more tomorrow at 00:00 UTC, in about ${when}.`;
 }
 
 const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {} });
@@ -432,7 +460,6 @@ function status(u) {
   };
 }
 
-const signups = {}; // simple per-network limit on new keys
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
 async function route(req, res) {
@@ -459,9 +486,10 @@ async function route(req, res) {
 
   if (req.url === "/api/signup" && req.method === "POST") {
     const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-    const hits = (signups[ip] || []).filter((t) => Date.now() - t < 3600000);
-    if (hits.length >= 10) return send(res, 429, { error: "Too many new keys from your network. Try again in an hour." });
-    signups[ip] = [...hits, Date.now()];
+    const count = await bumpNetworkCountToday(ip);
+    if (count > MAX_KEYS_PER_NETWORK_PER_DAY) {
+      return send(res, 429, { error: resetMessage() });
+    }
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
     await saveUser(token, newUser());
     return send(res, 200, { token });
