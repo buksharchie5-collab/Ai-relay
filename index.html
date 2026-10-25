@@ -4,9 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Relay">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>AI Relay</title>
 <style>
-  :root { --bg:#000; --panel:#171717; --raised:#212121; --field:#2f2f2f; --ink:#ececec; --mute:#9b9b9b; --line:#2c2c2c; --accent:#4f7cff; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; color-scheme:dark; }
+  :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; color-scheme:dark; }
   * { box-sizing:border-box; }
   html, body { height:100%; margin:0; background:var(--bg); }
   body { color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
@@ -29,28 +35,31 @@
   input[type=password] { flex:1; min-width:0; padding:11px 12px; font-size:16px; background:var(--field); border:1px solid var(--line); border-radius:10px; }
   input::placeholder, textarea::placeholder { color:#777; }
 
-  /* sign in: separate sections */
-  #login { min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:28px 18px; }
-  .hero { width:100%; max-width:440px; text-align:center; padding:8px 0 4px; }
-  .hero .logo { width:52px; height:52px; margin:0 auto 14px; border-radius:16px; font-size:24px; }
-  .hero h1 { font-size:26px; line-height:1.2; margin:0 0 8px; font-weight:700; }
+  /* sign in */
+  #login { min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
+  .hero { width:100%; max-width:440px; text-align:center; }
+  .logo-tile { width:64px; height:64px; margin:0 auto 14px; border-radius:18px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-size:30px; font-weight:700; box-shadow:0 12px 32px rgba(56,130,255,.35); }
+  .hero h1 { font-size:30px; font-weight:800; letter-spacing:-0.02em; margin:0 0 6px; }
   .hero p { color:var(--mute); margin:0; font-size:15px; }
-  .panel { width:100%; max-width:440px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  .panel { width:100%; max-width:440px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:20px; }
   .panel h2 { font-size:17px; margin:0 0 4px; font-weight:700; }
   .panel .sub { color:var(--mute); font-size:14px; margin:0 0 14px; }
-  .panel .btn { width:100%; padding:13px; font-size:15px; }
-  .divider { display:flex; align-items:center; gap:10px; color:var(--mute); font-size:13px; margin:14px 0; }
-  .divider::before, .divider::after { content:""; flex:1; height:1px; background:var(--line); }
-  .steps { width:100%; max-width:440px; padding:4px 6px; }
-  .steps ol { margin:0; padding-left:20px; color:var(--mute); font-size:14px; }
-  .steps li { margin:6px 0; }
-  .steps b { color:var(--ink); font-weight:600; }
+  .btn.block { width:100%; padding:14px; font-size:16px; border-radius:14px; }
+  .keyrow { display:flex; gap:8px; align-items:stretch; }
+  .keyrow input { flex:1; min-width:0; height:50px; }
+  .keyrow .btn { flex:none; padding:0 20px; border-radius:14px; font-size:15px; }
+  .or { display:flex; align-items:center; gap:12px; width:100%; max-width:440px; color:var(--mute); font-size:13px; }
+  .or::before, .or::after { content:""; flex:1; height:1px; background:var(--line); }
+  .steps { width:100%; max-width:440px; display:grid; gap:10px; }
+  .step { display:flex; gap:12px; align-items:flex-start; color:var(--mute); font-size:14px; }
+  .step b { color:var(--ink); font-weight:600; }
+  .step .num { flex:none; width:24px; height:24px; border-radius:50%; background:var(--raised); border:1px solid var(--line); display:grid; place-items:center; font-size:12px; font-weight:700; color:var(--ink); }
   code.key { display:block; padding:12px; margin:0 0 12px; background:var(--field); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
   .err { width:100%; max-width:440px; color:var(--warn); font-size:14px; min-height:20px; margin:0; text-align:center; }
 
   /* app shell */
   #app { position:relative; height:100vh; height:100dvh; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
-  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px; }
   .pill { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:14px; font-weight:600; max-width:55vw; }
   .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
@@ -100,6 +109,8 @@
   #app.side-open #side { transform:none; }
   #app.drawer-open #drawer { transform:none; }
   .shead { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 10px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
+  .logo { width:30px; height:30px; flex:none; border-radius:9px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-weight:700; font-size:16px; }
   .nav { display:flex; align-items:center; gap:12px; width:100%; padding:10px; border-radius:12px; font-size:16px; text-align:left; }
   .nav:hover { background:var(--raised); }
   .nav .icon { width:34px; height:34px; background:none; border:0; }
@@ -147,7 +158,7 @@
 
 <div id="login" class="off">
   <header class="hero">
-    <div class="logo brand-logo"><span class="logo">⇄</span></div>
+    <div class="logo-tile">⇄</div>
     <h1>AI Relay</h1>
     <p>When one free AI runs out, the next picks up.</p>
   </header>
@@ -155,15 +166,15 @@
   <section class="panel" id="choose">
     <h2>New here?</h2>
     <p class="sub">Create a personal key. It saves your setup and works on any device.</p>
-    <button id="create" type="button" class="btn">Create my key</button>
+    <button id="create" type="button" class="btn block">Create my key</button>
   </section>
 
-  <div class="divider">or</div>
+  <div class="or" id="orDivider">or</div>
 
   <section class="panel" id="returning">
     <h2>Already have a key?</h2>
     <p class="sub">Paste the personal key you saved.</p>
-    <div class="row">
+    <div class="keyrow">
       <input id="have" type="password" placeholder="fa-…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key">
       <button id="enter" type="button" class="btn">Sign in</button>
     </div>
@@ -173,18 +184,16 @@
     <h2>Save your key</h2>
     <p class="sub">Keep this somewhere safe, like a password manager. It cannot be recovered if you lose it.</p>
     <code class="key" id="newkey"></code>
-    <div class="row">
+    <div class="keyrow">
       <button id="copy2" class="btn ghost" type="button">Copy</button>
       <button id="go" class="btn" type="button">I saved it</button>
     </div>
   </section>
 
   <section class="steps">
-    <ol>
-      <li><b>Create your key</b> and save it.</li>
-      <li><b>Add a free AI key</b> from the AI providers panel.</li>
-      <li><b>Start chatting.</b> If one AI runs out, the next one answers.</li>
-    </ol>
+    <div class="step"><span class="num">1</span><span><b>Create your key</b> and save it.</span></div>
+    <div class="step"><span class="num">2</span><span><b>Add a free AI key</b> from the AI providers panel.</span></div>
+    <div class="step"><span class="num">3</span><span><b>Start chatting.</b> If one AI runs out, the next one answers.</span></div>
   </section>
 
   <p id="lerr" class="err" role="alert"></p>
@@ -584,8 +593,8 @@ $("create").onclick = async () => {
     if (!r.token) throw new Error(r.error || "Could not create a key");
     localStorage.setItem("freeai-key", r.token);
     $("newkey").textContent = r.token;
-    $("choose").classList.add("off"); $("returning").classList.add("off"); $("made").classList.remove("off");
-    document.querySelector(".divider").classList.add("off");
+    $("choose").classList.add("off"); $("returning").classList.add("off"); $("orDivider").classList.add("off");
+    $("made").classList.remove("off");
   } catch (e) { $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message; }
 };
 $("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
