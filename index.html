@@ -78,34 +78,52 @@
   .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   #log { flex:1; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:8px 16px 16px; scroll-behavior:auto; }
-  .col { max-width:720px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; gap:18px; }
+  .col { max-width:720px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; gap:20px; }
   #empty { margin:auto 0; padding-top:8vh; transition:opacity .3s ease, transform .3s var(--ease); }
   #empty.off { opacity:0; transform:translateY(-6px); }
-  #empty h2 { font-size:28px; font-weight:600; margin:0 0 18px; }
+  #empty h2 { font-size:28px; font-weight:700; letter-spacing:-0.01em; margin:0 0 18px; }
   .sugg button { display:block; width:100%; text-align:left; padding:14px 2px; font-size:16px; border-bottom:1px solid var(--line); }
   .sugg button:hover { color:#fff; }
   .setup { margin:0 0 20px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
   .setup strong { display:block; margin-bottom:6px; }
   .setup ol { margin:8px 0 12px; padding-left:20px; color:var(--mute); font-size:14px; }
   .setup li { margin:4px 0; }
-  .msg { max-width:88%; white-space:pre-wrap; overflow-wrap:anywhere; -webkit-touch-callout:none; }
-  .me { align-self:flex-end; padding:10px 15px; background:var(--field); border-radius:22px 22px 6px 22px; }
+
+  /* chat messages */
+  .msg { max-width:88%; overflow-wrap:anywhere; -webkit-touch-callout:none; }
+  .me { align-self:flex-end; padding:10px 16px; background:var(--field); border-radius:22px 22px 6px 22px; white-space:pre-wrap; }
   .bot { align-self:stretch; max-width:100%; padding:2px 0; }
+  .bot .body { font-size:16.5px; line-height:1.7; color:#ececec; }
+  .bot .body p { margin:0 0 12px; }
+  .bot .body p:last-child { margin-bottom:0; }
+  .bot .body strong { color:#fff; font-weight:700; }
+  .bot .body em { color:#d8d8d8; }
+  .bot .body h2, .bot .body h3, .bot .body h4 { color:#fff; line-height:1.3; letter-spacing:-0.01em; margin:20px 0 8px; }
+  .bot .body h2 { font-size:22px; font-weight:800; }
+  .bot .body h3 { font-size:19px; font-weight:750; }
+  .bot .body h4 { font-size:17px; font-weight:700; }
+  .bot .body h2:first-child, .bot .body h3:first-child, .bot .body h4:first-child { margin-top:0; }
+  .bot .body ul, .bot .body ol { margin:6px 0 14px; padding-left:22px; }
+  .bot .body li { margin:6px 0; padding-left:2px; }
+  .bot .body li::marker { color:var(--accent-2); font-weight:700; }
+  .bot .body ol li::marker { font-weight:700; }
+  .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
+  .bot .body pre { margin:12px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
+  .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
   .bot.thinking .body { color:var(--mute); }
-  .bot code { padding:1px 5px; background:var(--field); border-radius:5px; font:13.5px ui-monospace, Menlo, monospace; }
-  .bot pre { margin:8px 0; padding:12px; overflow-x:auto; background:var(--panel); border-radius:12px; white-space:pre; }
-  .bot pre code { padding:0; background:none; }
-  .meta { margin-top:6px; font-size:12px; color:var(--mute); }
+  .meta { margin-top:10px; font-size:12px; color:var(--mute); }
+  .meta:empty { display:none; }
   .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; max-width:92%; }
 
+  /* composer: the + and send buttons sit in the middle of the bar */
   .composer { padding:6px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
-  .box { max-width:720px; margin:0 auto; display:flex; align-items:flex-end; gap:4px; padding:6px; background:var(--field); border-radius:28px; transition:box-shadow .2s ease; }
+  .box { max-width:720px; margin:0 auto; display:flex; align-items:center; gap:4px; padding:6px 6px 6px 6px; min-height:58px; background:var(--field); border-radius:29px; transition:box-shadow .2s ease; }
   .box:focus-within { box-shadow:0 0 0 2px rgba(79,124,255,.35); }
-  .plusbtn { width:38px; height:38px; flex:none; border-radius:50%; font-size:26px; line-height:1; color:var(--ink); display:grid; place-items:center; }
+  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; font-size:26px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; align-self:center; margin-left:2px; }
   .plusbtn:hover { background:rgba(255,255,255,.08); }
-  textarea { flex:1; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; padding:9px 4px; transition:height .15s ease; }
-  #send { width:38px; height:38px; flex:none; border-radius:50%; background:var(--ink); color:#000; display:grid; place-items:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
+  textarea { flex:1; min-width:0; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; line-height:1.4; padding:11px 6px; margin:0; display:block; transition:height .15s ease; }
+  #send { width:40px; height:40px; flex:none; border-radius:50%; background:var(--ink); color:#000; display:grid; place-items:center; align-self:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
   #send svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s var(--ease); }
   #send svg.stop { fill:currentColor; stroke:none; }
   #send:disabled { opacity:.3; }
@@ -149,17 +167,29 @@
   .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
   .seg { display:inline-flex; margin-bottom:10px; }
 
-  /* bottom sheets */
+  /* bottom sheets (the + menu is a drop-up card) */
   .sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
   .sheet .bg { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .3s ease; }
   .sheet.show { pointer-events:auto; }
   .sheet.show .bg { opacity:1; }
   .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); opacity:0; transition:transform .38s var(--ease), opacity .3s ease; max-height:90vh; overflow-y:auto; will-change:transform; }
   .sheet.show .sheetbody { transform:none; opacity:1; }
-  .sheetbody button { display:block; width:100%; padding:15px 8px; font-size:17px; text-align:center; border-bottom:1px solid var(--line); }
-  .sheetbody button:last-child { border-bottom:0; color:var(--mute); }
+  .sheetbody > button { display:block; width:100%; padding:15px 8px; font-size:17px; text-align:center; border-bottom:1px solid var(--line); }
+  .sheetbody > button:last-child { border-bottom:0; color:var(--mute); }
   .sheetbody .danger { color:#f87171; }
   .sheetbody .btn.block { border-bottom:0; padding:14px; font-size:16px; border-radius:14px; margin-top:12px; }
+  .grip { width:40px; height:5px; border-radius:3px; background:#3a3a3a; margin:6px auto 12px; }
+  .dropcard { margin:0 0 8px; padding:8px; background:var(--raised); border:1px solid var(--line); border-radius:22px; box-shadow:0 18px 40px rgba(0,0,0,.5); }
+  .dropcard.drop { margin:0 auto; max-width:520px; }
+  .opt { display:flex; align-items:center; gap:14px; width:100%; padding:12px; border-radius:16px; text-align:left; border:0; background:transparent; }
+  .opt:hover { background:rgba(255,255,255,.05); }
+  .opt .ic { width:42px; height:42px; flex:none; border-radius:13px; background:#262626; display:grid; place-items:center; color:var(--ink); }
+  .opt .ic svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .opt .tx { flex:1; min-width:0; }
+  .opt .tx b { display:block; font-size:16px; font-weight:600; color:var(--ink); }
+  .opt .tx small { display:block; font-size:13px; color:var(--mute); margin-top:1px; }
+  .opt .chev { color:#555; font-size:20px; flex:none; }
+  .cancelbtn { width:100%; margin:0 auto; padding:15px; border-radius:18px; background:var(--raised); border:1px solid var(--line); font-size:16px; font-weight:600; color:var(--ink); text-align:center; }
   .usebody { max-height:60vh; overflow-y:auto; padding:4px 2px; }
   .urow { padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
   .urow b { display:block; font-size:15px; }
@@ -291,35 +321,43 @@
   <div id="sheet" class="sheet">
     <div class="bg" data-close></div>
     <div class="sheetbody">
-      <button type="button" data-do="copy">Copy</button>
-      <button type="button" data-do="edit">Edit</button>
-      <button type="button" data-do="del" class="danger">Delete</button>
-      <button type="button" data-do="cancel">Cancel</button>
+      <div class="grip"></div>
+      <div class="dropcard drop">
+        <button type="button" class="opt" data-do="copy"><span class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span><span class="tx"><b>Copy</b><small>Copy this message</small></span></button>
+        <button type="button" class="opt" data-do="edit"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span class="tx"><b>Edit</b><small>Change and resend from here</small></span></button>
+        <button type="button" class="opt" data-do="del"><span class="ic" style="color:#f87171"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></span><span class="tx"><b style="color:#f87171">Delete</b><small>Remove this message</small></span></button>
+      </div>
+      <button type="button" class="cancelbtn" data-do="cancel">Cancel</button>
     </div>
   </div>
 
   <div id="attach" class="sheet">
     <div class="bg" data-close></div>
     <div class="sheetbody">
-      <button type="button" data-att="usage">Usage</button>
-      <button type="button" data-att="prov">AI providers</button>
-      <button type="button" data-att="share">Share chat</button>
-      <button type="button" data-att="cancel">Cancel</button>
+      <div class="grip"></div>
+      <div class="dropcard drop">
+        <button type="button" class="opt" data-att="usage"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="tx"><b>Usage</b><small>Your limits and messages today</small></span><span class="chev">›</span></button>
+        <button type="button" class="opt" data-att="prov"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span><span class="tx"><b>AI providers</b><small>Add keys and choose which AI answers</small></span><span class="chev">›</span></button>
+        <button type="button" class="opt" data-att="share"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev">›</span></button>
+      </div>
+      <button type="button" class="cancelbtn" data-att="cancel">Cancel</button>
     </div>
   </div>
 
   <div id="usage" class="sheet">
     <div class="bg" data-close></div>
     <div class="sheetbody">
+      <div class="grip"></div>
       <div class="sheettitle">Usage</div>
       <div class="usebody" id="usebody"></div>
-      <button type="button" data-close>Done</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:12px">Done</button>
     </div>
   </div>
 
   <div id="psheet" class="sheet">
     <div class="bg" data-close></div>
     <div class="sheetbody">
+      <div class="grip"></div>
       <div class="sheettitle">Your profile</div>
       <div class="pform">
         <label>Your name<input id="pName" maxlength="40" placeholder="e.g. Sam" autocomplete="off"></label>
@@ -327,13 +365,14 @@
         <p class="hint">The AI uses this in every reply. Only you can see it.</p>
       </div>
       <button id="pSave" class="btn block" type="button">Save</button>
-      <button type="button" data-close>Cancel</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Cancel</button>
     </div>
   </div>
 
   <div id="hsheet" class="sheet">
     <div class="bg" data-close></div>
     <div class="sheetbody">
+      <div class="grip"></div>
       <div class="sheettitle">Add to Home Screen</div>
       <div class="guide">
         <p>Open AI Relay in Safari and it can sit on your Home Screen like an app.</p>
@@ -342,7 +381,7 @@
         <div class="step"><span class="num">3</span><span><b>Tap Add to Home Screen,</b> then tap <b>Add</b> in the top right.</span></div>
         <div class="tip"><b>Tip:</b> Open AI Relay from the new icon. It runs full screen with no Safari bar.</div>
       </div>
-      <button type="button" data-close>Got it</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:12px">Got it</button>
     </div>
   </div>
 </div>
@@ -414,13 +453,36 @@ function updateGreeting() {
 $("homeBtn").onclick = () => openSheetEl("hsheet");
 $("sideHome").onclick = () => openSheetEl("hsheet");
 
-// --- tiny safe formatter: code blocks, inline code, bold, bullets ---
+// --- formatter: headings, bold, italics, lists, code, paragraphs (escapes everything first, so it is safe) ---
 const TICK = String.fromCharCode(96);
 const FENCE = new RegExp(TICK + TICK + TICK + "(?:\\w+)?\\n?([\\s\\S]*?)" + TICK + TICK + TICK);
 const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
-const fmt = t => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : esc(s)
-  .replace(INLINE, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-  .replace(/^#{1,6}\s+(.+)$/gm, "<strong>$1</strong>").replace(/^\s*[-*]\s+/gm, "• ")).join("");
+function inline(t) {
+  return t
+    .replace(INLINE, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>");
+}
+function textBlock(s) {
+  const out = [];
+  let para = [], list = null;
+  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`<${list.t}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.t}>`); list = null; } };
+  for (const raw of esc(s).split("\n")) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    if ((m = line.match(/^(#{1,3})\s+(.+)$/))) { flushPara(); flushList(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    if ((m = line.match(/^\s*[-*•]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = line.match(/^\s*\d+[.)]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(m[1]); continue; }
+    flushList();
+    para.push(line.trim());
+  }
+  flushPara(); flushList();
+  return out.join("");
+}
+const fmt = t => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : textBlock(s)).join("");
 
 // --- providers panel ---
 function render() {
@@ -534,10 +596,11 @@ $("sideOut").onclick = signOut;
 $("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
 document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAll(); closeSheets(); } });
 
-// --- + menu ---
+// --- + menu (drop-up) ---
 $("plus").onclick = () => openSheetEl("attach");
 $("attach").addEventListener("click", e => {
-  const a = e.target.dataset.att;
+  const b = e.target.closest("[data-att]"); if (!b) return;
+  const a = b.dataset.att;
   if (!a || recentlyOpened()) return;
   if (a === "usage") return openUsage();
   if (a === "prov") { closeSheets(); return panel("drawer-open"); }
@@ -732,7 +795,8 @@ col.addEventListener("contextmenu", e => { const m = e.target.closest(".msg[data
 
 $("sheet").addEventListener("click", async e => {
   if (Date.now() - sheetAt < 400) return; // ignore the finger lifting from the long-press
-  const act = e.target.dataset.do; if (!act) return;
+  const b = e.target.closest("[data-do]"); if (!b) return;
+  const act = b.dataset.do;
   const m = history[target];
   closeSheets();
   if (act === "copy" && m) { try { await navigator.clipboard.writeText(String(m.content)); } catch {} }
