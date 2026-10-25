@@ -3,6 +3,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const zlib = require("zlib");
 
 // Accounts and chats are saved as local files in this folder.
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -48,6 +49,74 @@ function sharedLeft(name) {
 }
 // True if at least one shared AI still has messages left today
 const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
+
+// --- app icon and manifest, so the app can sit on the Home Screen like a real app ---
+const manifest = {
+  name: "AI Relay",
+  short_name: "AI Relay",
+  start_url: "/",
+  display: "standalone",
+  background_color: "#000000",
+  theme_color: "#000000",
+  icons: [
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+  ],
+};
+const crcTable = (() => {
+  const t = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
+  return Buffer.concat([len, td, crc]);
+}
+// Draws a blue tile with two white arrows (one pointing right, one pointing left).
+function makeIcon(size) {
+  const stride = size * 3 + 1;
+  const raw = Buffer.alloc(stride * size);
+  const ly1 = size * 0.38, ly2 = size * 0.62, th = size * 0.07;
+  const x0 = size * 0.24, x1 = size * 0.76, hw = size * 0.12;
+  for (let y = 0; y < size; y++) {
+    raw[y * stride] = 0;
+    for (let x = 0; x < size; x++) {
+      const t = (x + y) / (2 * size);
+      let r = 37 + (56 - 37) * t, g = 99 + (189 - 99) * t, b = 235 + (248 - 235) * t;
+      let white = false;
+      if (x >= x0 && x <= x1 && Math.abs(y - ly1) <= th / 2) white = true;
+      if (x >= x1 - hw && x <= x1 && Math.abs(y - ly1) <= (x1 - x)) white = true;
+      if (x >= x0 && x <= x1 && Math.abs(y - ly2) <= th / 2) white = true;
+      if (x >= x0 && x <= x0 + hw && Math.abs(y - ly2) <= (x - x0)) white = true;
+      const i = y * stride + 1 + x * 3;
+      raw[i] = white ? 255 : r;
+      raw[i + 1] = white ? 255 : g;
+      raw[i + 2] = white ? 255 : b;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", zlib.deflateSync(raw)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+const iconCache = {};
+const iconFor = (size) => (iconCache[size] ||= makeIcon(size));
 
 // --- text helpers: a message is either plain text or [text part, image part] ---
 const textOf = (c) => Array.isArray(c) ? ((c.find((p) => p && p.type === "text") || {}).text || "") : String(c ?? "");
@@ -342,6 +411,17 @@ const signups = {}; // simple per-network limit on new keys
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
 async function route(req, res) {
+  // Home Screen icon and app settings
+  if (req.method === "GET" && req.url === "/manifest.json") {
+    res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" });
+    return res.end(JSON.stringify(manifest));
+  }
+  if (req.method === "GET" && (req.url === "/icon-192.png" || req.url === "/icon-512.png" || req.url === "/apple-touch-icon.png")) {
+    const size = req.url.includes("512") ? 512 : req.url.includes("192") ? 192 : 180;
+    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" });
+    return res.end(iconFor(size));
+  }
+
   if (!req.url.startsWith("/api/")) {
     return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
       if (err) { res.writeHead(404); return res.end("Not found"); }
