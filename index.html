@@ -126,15 +126,20 @@
   .me .acts2 { justify-content:flex-end; }
   .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; max-width:92%; }
 
-  /* composer: the + and send buttons sit in the middle of the bar, with a footer under it */
+  /* composer: rounded card like the Claude app. Text on top, controls underneath. */
   .composer { padding:6px 14px calc(6px + env(safe-area-inset-bottom, 0px)); }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
-  .box { max-width:720px; margin:0 auto; display:flex; align-items:center; gap:4px; padding:6px 6px 6px 6px; min-height:58px; background:var(--field); border-radius:29px; transition:box-shadow .2s ease; }
-  .box:focus-within { box-shadow:0 0 0 2px rgba(79,124,255,.35); }
-  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; font-size:26px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; align-self:center; margin-left:2px; }
-  .plusbtn:hover { background:rgba(255,255,255,.08); }
-  textarea { flex:1; min-width:0; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; line-height:1.4; padding:11px 6px; margin:0; display:block; transition:height .15s ease; }
-  #send { width:40px; height:40px; flex:none; border-radius:50%; background:var(--ink); color:#000; display:grid; place-items:center; align-self:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
+  .box { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px; background:#1c1c1c; border:1px solid #2c2c2c; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.35); transition:box-shadow .2s ease, border-color .2s ease; }
+  .box:focus-within { border-color:#3a3a3a; box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(79,124,255,.25); }
+  textarea { width:100%; min-height:26px; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; line-height:1.45; padding:4px 4px; margin:0; display:block; color:var(--ink); transition:height .15s ease; }
+  .bar { display:flex; align-items:center; gap:8px; }
+  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; background:#2a2a2a; font-size:24px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; }
+  .plusbtn:hover { background:#333; }
+  .mpill { display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:99px; background:#2a2a2a; font-size:15px; font-weight:600; color:var(--ink); min-width:0; max-width:60%; }
+  .mpill:hover { background:#333; }
+  #mprov { color:var(--mute); font-weight:500; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .grow { flex:1; }
+  #send { width:40px; height:40px; flex:none; border-radius:50%; background:#f2f2f2; color:#000; display:grid; place-items:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
   #send svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s var(--ease); }
   #send svg.stop { fill:currentColor; stroke:none; }
   #send:disabled { opacity:.3; }
@@ -303,9 +308,13 @@
   <form id="f" class="composer">
     <div id="editbar" class="editbar off"><span>Editing message</span><button type="button" id="editcancel" class="btn ghost small">Cancel</button></div>
     <div class="box">
-      <button id="plus" class="plusbtn" type="button" aria-label="More options">+</button>
       <textarea id="q" rows="1" placeholder="Ask AI Relay" aria-label="Message"></textarea>
-      <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <div class="bar">
+        <button id="plus" class="plusbtn" type="button" aria-label="More options">+</button>
+        <button id="mpill" class="mpill" type="button" aria-label="Choose AI"><span id="mtxt">Auto</span><span id="mprov"></span></button>
+        <span class="grow"></span>
+        <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      </div>
     </div>
     <div class="foot">
       <span class="tip">Hold a reply to select and copy part of it</span>
@@ -505,6 +514,9 @@ function render() {
   const cur = live.find(p => p.name === name);
   $("ptxt").textContent = !live.length ? "Add a key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
   $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
+  // The model pill above the send button
+  $("mtxt").textContent = st.selected === "auto" ? "Auto" : (cur ? cur.name : (st.selected || "Auto"));
+  $("mprov").textContent = !live.length ? "" : (cur ? "· " + cur.name : (st.nextUp ? "· " + st.nextUp : ""));
   $("setup").classList.toggle("off", st.providers.some(p => p.own));
   $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
   $("acctline").textContent = "Key " + (getKey() || "").slice(0, 7) + "…";
@@ -601,6 +613,7 @@ $("sideShare").onclick = () => { closeAll(); shareChat(); };
 $("menu").onclick = () => panel("side-open");
 $("sideclose").onclick = closeAll;
 $("pill").onclick = () => panel("drawer-open");
+$("mpill").onclick = () => panel("drawer-open");
 $("openSetup").onclick = () => panel("drawer-open");
 $("close").onclick = closeAll;
 $("scrim").onclick = closeAll;
@@ -698,7 +711,10 @@ col.addEventListener("click", async e => {
   const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
   const act = b.dataset.act;
   if (act === "copy") {
-    try { await navigator.clipboard.writeText(String(m.content)); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1200); }
+    // Copy your question, then the answer, so the copy makes sense on its own.
+    const q0 = history[i - 1] && history[i - 1].role === "user" ? String(history[i - 1].content) : "";
+    const text = q0 ? "You: " + q0 + "\n\nAI Relay: " + String(m.content) : String(m.content);
+    try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1200); }
     catch { alert("Could not copy. Long-press the text to select it instead."); }
   }
   if (act === "edit") { editing = i; q.value = String(m.content); q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
