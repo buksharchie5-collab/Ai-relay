@@ -127,11 +127,13 @@
   .nav .icon svg { width:18px; height:18px; }
   .label { font-size:13px; color:var(--mute); padding:18px 10px 6px; }
   #chatlist { flex:1; overflow-y:auto; overscroll-behavior:contain; }
-  .citem { display:flex; align-items:center; border-radius:10px; transition:background-color .2s ease; }
+  .citem { display:flex; align-items:center; gap:2px; border-radius:10px; padding-right:4px; transition:background-color .2s ease; }
   .citem:hover, .citem.cur { background:var(--raised); }
   .citem .t { flex:1; min-width:0; text-align:left; padding:11px 10px; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .citem .ib { padding:6px 7px; font-size:12px; color:var(--mute); border-radius:8px; flex:none; }
-  .citem .ib:hover { color:var(--ink); }
+  .citem .ib { padding:8px 9px; font-size:13px; color:var(--mute); border-radius:8px; flex:none; }
+  .citem .ib:hover { color:var(--ink); background:var(--field); }
+  .citem .x { width:40px; height:40px; flex:none; display:grid; place-items:center; border-radius:10px; font-size:26px; line-height:1; color:var(--mute); }
+  .citem .x:hover { color:#f87171; background:var(--field); }
   .nochat { padding:8px 10px; color:var(--mute); font-size:14px; }
   .sidefoot { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 6px 0; border-top:1px solid var(--line); font-size:13px; color:var(--mute); }
   .pc { background:var(--raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:10px; transition:border-color .25s ease, box-shadow .25s ease; }
@@ -271,10 +273,8 @@
   <aside id="side" aria-label="Menu">
     <div class="shead"><div class="brand"><span class="logo">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="nav" id="sideNew" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
-    <button class="nav" id="sideProviders" type="button"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span>AI providers</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
-    <button class="nav" id="sideSave" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg></span>Save chat as file</button>
     <button class="nav" id="sideHome" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
     <div class="label">Your chats</div>
     <div id="chatlist"></div>
@@ -495,36 +495,36 @@ $("pSave").onclick = async () => {
   } catch (e) { alert(e.message); }
 };
 
-// --- sharing and saving the chat ---
-function transcript() {
-  return history.map(m => (m.role === "user" ? "You: " : "AI Relay: ") + String(m.content)).join("\n\n");
+// --- sharing a chat (text only) ---
+function transcriptOf(messages) {
+  return messages.map(m => (m.role === "user" ? "You: " : "AI Relay: ") + String(m.content)).join("\n\n");
 }
-function downloadChat() {
-  const blob = new Blob([transcript()], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "ai-relay-chat.txt";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-async function shareChat() {
-  if (!history.length) { alert("Start a chat first, then you can share it."); return; }
-  const text = transcript();
+async function shareText(title, text) {
   if (navigator.share) {
-    try { await navigator.share({ title: "AI Relay chat", text }); return; }
+    try { await navigator.share({ title, text }); return; }
     catch (e) { if (e.name === "AbortError") return; }
   }
   try { await navigator.clipboard.writeText(text); alert("Chat copied. Paste it anywhere."); }
-  catch { downloadChat(); }
+  catch { alert("Could not copy this chat."); }
+}
+function shareChat() {
+  if (!history.length) { alert("Start a chat first, then you can share it."); return; }
+  shareText("AI Relay chat", transcriptOf(history));
+}
+// Shares a saved chat from the list without opening it.
+async function shareSaved(id) {
+  try {
+    const c = await api("/api/chats/open", { id });
+    if (!c || c.error) { alert("Could not find this chat."); return; }
+    shareText(c.title || "AI Relay chat", transcriptOf(c.messages));
+  } catch { alert("Could not share this chat."); }
 }
 $("sideShare").onclick = () => { closeAll(); shareChat(); };
-$("sideSave").onclick = () => { closeAll(); if (history.length) downloadChat(); else alert("Start a chat first."); };
 
 // --- navigation ---
 $("menu").onclick = () => panel("side-open");
 $("sideclose").onclick = closeAll;
 $("pill").onclick = () => panel("drawer-open");
-$("sideProviders").onclick = () => panel("drawer-open");
 $("openSetup").onclick = () => panel("drawer-open");
 $("close").onclick = closeAll;
 $("scrim").onclick = closeAll;
@@ -545,13 +545,13 @@ $("attach").addEventListener("click", e => {
   closeSheets();
 });
 
-// --- saved chats: open, pin, rename, delete ---
+// --- saved chats: open, share, pin, delete ---
 async function loadChats() {
   if (!getKey()) return;
   try {
     const list = await api("/api/chats");
     $("chatlist").innerHTML = list.length
-      ? list.map(c => `<div class="citem ${c.id === chatId ? "cur" : ""}"><button class="t" type="button" data-open="${esc(c.id)}">${c.pinned ? "★ " : ""}${esc(c.title)}</button><button class="ib" type="button" data-pin="${c.pinned ? "0" : "1"}" data-id="${esc(c.id)}">${c.pinned ? "Unpin" : "Pin"}</button><button class="ib" type="button" data-ren="1" data-id="${esc(c.id)}" data-title="${esc(c.title)}">Rename</button><button class="ib" type="button" data-del="${esc(c.id)}" aria-label="Delete chat">×</button></div>`).join("")
+      ? list.map(c => `<div class="citem ${c.id === chatId ? "cur" : ""}"><button class="t" type="button" data-open="${esc(c.id)}">${c.pinned ? "★ " : ""}${esc(c.title)}</button><button class="ib" type="button" data-share="${esc(c.id)}">Share</button><button class="ib" type="button" data-pin="${c.pinned ? "0" : "1"}" data-id="${esc(c.id)}">${c.pinned ? "Unpin" : "Pin"}</button><button class="x" type="button" data-del="${esc(c.id)}" aria-label="Delete chat">×</button></div>`).join("")
       : `<div class="nochat">Your chats will appear here.</div>`;
   } catch {}
 }
@@ -560,16 +560,13 @@ $("chatlist").addEventListener("click", async e => {
   const d = b.dataset;
   try {
     if (d.open) return openChat(d.open);
+    if (d.share) return shareSaved(d.share);
     if (d.del) {
       if (!confirm("Delete this chat?")) return;
       await api("/api/chats/delete", { id: d.del });
       if (d.del === chatId) { history = []; chatId = newId(); redraw(false); }
     }
     else if (d.pin) { await api("/api/chats/pin", { id: d.id, pinned: d.pin === "1" }); }
-    else if (d.ren) {
-      const t = prompt("Rename chat", b.dataset.title || "");
-      if (t && t.trim()) await api("/api/chats/rename", { id: d.id, title: t });
-    }
   } catch {}
   loadChats();
 });
