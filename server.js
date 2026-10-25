@@ -181,7 +181,7 @@ function resetMessage() {
   return `You've reached the limit of ${MAX_KEYS_PER_DEVICE_PER_DAY} personal keys on this device today. You can create more tomorrow at 00:00 UTC, in about ${when}.`;
 }
 
-const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {} });
+const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {}, profile: { name: "", style: "" } });
 
 async function loadUser(t) {
   try {
@@ -208,11 +208,22 @@ function limitOf(u, name) {
   return L;
 }
 
-// --- saved chats ---
+// --- profile: a name and how the AI should talk to this person ---
+function profileSystem(u) {
+  const p = u.profile || {};
+  const parts = [];
+  if (p.name) parts.push(`The person you're helping is called ${p.name}.`);
+  if (p.style) parts.push(`How to respond: ${p.style}`);
+  return parts.join(" ");
+}
+const withSystem = (sys, msgs) => (sys ? [{ role: "system", content: sys }, ...msgs] : msgs);
+
+// --- saved chats: pinned chats stay on top, renamed titles are kept ---
 function putChat(u, id, messages) {
   if (!id || !Array.isArray(messages)) return;
   const key = String(id).slice(0, 40);
   u.chats ||= {};
+  const prev = u.chats[key];
   if (!messages.length) { delete u.chats[key]; return; }
   const clean = messages.slice(-MAX_MESSAGES).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
@@ -220,12 +231,21 @@ function putChat(u, id, messages) {
     meta: String(m.meta || "").slice(0, 200),
   }));
   const first = clean.find((m) => m.role === "user");
-  const title = (first ? first.content : "New chat").replace(/\s+/g, " ").trim().slice(0, 48) || "New chat";
-  u.chats[key] = { id: key, title, updated: Date.now(), messages: clean };
+  const autoTitle = (first ? first.content : "New chat").replace(/\s+/g, " ").trim().slice(0, 48) || "New chat";
+  u.chats[key] = {
+    id: key,
+    title: prev && prev.custom ? prev.title : autoTitle,
+    custom: !!(prev && prev.custom),
+    pinned: !!(prev && prev.pinned),
+    updated: Date.now(),
+    messages: clean,
+  };
   const sorted = Object.values(u.chats).sort((a, b) => b.updated - a.updated);
   for (const old of sorted.slice(MAX_CHATS)) delete u.chats[old.id];
 }
-const listChats = (u) => Object.values(u.chats || {}).sort((a, b) => b.updated - a.updated).map(({ id, title, updated }) => ({ id, title, updated }));
+const listChats = (u) => Object.values(u.chats || {})
+  .sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated))
+  .map(({ id, title, updated, pinned }) => ({ id, title, updated, pinned: !!pinned }));
 
 // --- model names: remember the one that worked for each AI ---
 const models = {}; // AI name -> model name that last worked
@@ -316,12 +336,24 @@ function trimContext(messages, n) {
   });
 }
 
-// Call one AI with one model name. Returns { ok, reply, tokens } or { ok:false, reason, cooldown, modelError }.
-async function callModel(name, key, model, messages) {
+// Turns a failed provider response into a clear result the failover logic understands.
+function classifyFailure(res, text, model) {
+  const detail = errText(text);
+  if (isModelError(res.status, text)) {
+    return { ok: false, modelError: true, reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
+  }
+  if (res.status === 401) {
+    return { ok: false, reason: "key rejected. Copy the key again from the provider and paste it into this AI's card, then Save.", cooldown: 300000 };
+  }
+  const cooldown = [402, 403, 429].includes(res.status) || res.status >= 500 ? cooldownFor(res, text) : 30000;
+  return { ok: false, reason: `HTTP ${res.status}${detail ? ": " + detail : ""}`, cooldown };
+}
+
+// Call one AI with one model name (no streaming). Used by the Test button and /api/chat.
+async function callModel(name, key, model, messages, sys) {
   const p = PROVIDERS[name];
   for (let attempt = 0; attempt < 2; attempt++) {
-    // First try the recent context; if the provider's per-minute token limit is hit, retry with only the last 2 messages.
-    const ctx = trimContext(messages, attempt === 0 ? CONTEXT_MESSAGES : 2);
+    const ctx = withSystem(sys, trimContext(messages, attempt === 0 ? CONTEXT_MESSAGES : 2));
     try {
       const res = await fetch(p.url, {
         method: "POST",
@@ -336,15 +368,7 @@ async function callModel(name, key, model, messages) {
         return { ok: false, reason: "empty reply", cooldown: 30000 };
       }
       if (attempt === 0 && res.status === 429 && /token/i.test(text)) continue;
-      const detail = errText(text);
-      if (isModelError(res.status, text)) {
-        return { ok: false, modelError: true, reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
-      }
-      if (res.status === 401) {
-        return { ok: false, reason: "key rejected. Copy the key again from the provider and paste it into this AI's card, then Save.", cooldown: 300000 };
-      }
-      const cooldown = [402, 403, 429].includes(res.status) || res.status >= 500 ? cooldownFor(res, text) : 30000;
-      return { ok: false, reason: `HTTP ${res.status}${detail ? ": " + detail : ""}`, cooldown };
+      return classifyFailure(res, text, model);
     } catch (e) {
       return { ok: false, reason: e.message, cooldown: 30000 };
     }
@@ -352,9 +376,65 @@ async function callModel(name, key, model, messages) {
   return { ok: false, reason: "request failed", cooldown: 30000 };
 }
 
-// only = ask just this AI (used by the Test button). test = don't count it against limits.
+// Streams one AI's reply. Each piece of text is sent to the phone as it arrives.
+// Returns { ok, reply, tokens } when finished, or { ok:false, reason, cooldown, modelError, partial, aborted }.
+async function streamModel(name, key, model, messages, sys, ev, signal) {
+  const p = PROVIDERS[name];
+  const ctx = withSystem(sys, trimContext(messages, CONTEXT_MESSAGES));
+  let sent = false, full = "", tokens = 0;
+  try {
+    const res = await fetch(p.url, {
+      method: "POST",
+      headers: headersFor(key),
+      body: JSON.stringify({ model, messages: ctx, max_tokens: 1024, stream: true }),
+      signal,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return classifyFailure(res, text, model);
+    }
+    const type = res.headers.get("content-type") || "";
+    if (type.includes("text/event-stream") && res.body) {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      outer: for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (!line.startsWith("data:")) continue;
+          const data = line.slice(5).trim();
+          if (data === "[DONE]") break outer;
+          let j;
+          try { j = JSON.parse(data); } catch { continue; }
+          const piece = j.choices?.[0]?.delta?.content;
+          if (piece) { full += piece; sent = true; ev({ type: "delta", text: piece }); }
+          if (j.usage?.total_tokens) tokens = j.usage.total_tokens;
+        }
+      }
+    } else {
+      // Provider ignored the stream request and sent one normal reply.
+      const j = JSON.parse(await res.text());
+      full = j.choices?.[0]?.message?.content || "";
+      if (full) { sent = true; ev({ type: "delta", text: full }); }
+      tokens = j.usage?.total_tokens || 0;
+    }
+    if (!full) return { ok: false, reason: "empty reply", cooldown: 30000, partial: sent };
+    return { ok: true, reply: full, tokens };
+  } catch (e) {
+    if (signal.aborted) return { ok: false, aborted: true };
+    return { ok: false, reason: e.message, cooldown: 30000, partial: sent };
+  }
+}
+
+// Non-streaming ask, used by the Test button and /api/chat.
 async function ask(u, messages, only, test) {
   const tried = [];
+  const sys = profileSystem(u);
   let list = only ? [only] : planFor(u);
   let limited = 0;
   for (const name of list) {
@@ -380,7 +460,7 @@ async function ask(u, messages, only, test) {
         if (!model) break;
       }
       skip.add(model);
-      last = await callModel(name, key, model, messages);
+      last = await callModel(name, key, model, messages, sys);
       if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
       if (!last.modelError) break;
       model = null;
@@ -410,11 +490,85 @@ async function ask(u, messages, only, test) {
   err.tried = tried; throw err;
 }
 
+// Streaming version of ask(). Writes events to the phone and returns the result.
+async function askStream(u, messages, res, signal) {
+  const ev = (o) => { if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(o) + "\n"); };
+  const tried = [];
+  const sys = profileSystem(u);
+  const list = planFor(u);
+  let limited = 0;
+  if (!list.length) { ev({ type: "error", error: "Add at least one key first (AI providers)." }); return { ok: false }; }
+
+  for (const name of list) {
+    if (signal.aborted) return { ok: false, aborted: true };
+    if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
+    const usingShared = !u.keys[name];
+    if (usingShared) {
+      if (dailyCap(name) <= 0) { tried.push(`${name}: shared use is off. Add your own key for this AI.`); continue; }
+      if (sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
+      const L = limitOf(u, name);
+      if (L.hn >= PER_USER_HOURLY) { limited++; tried.push(`${name}: your ${PER_USER_HOURLY} messages this hour are used`); continue; }
+      if (L.dn >= PER_USER_DAILY) { limited++; tried.push(`${name}: your ${PER_USER_DAILY} messages today are used`); continue; }
+    }
+    const s = usage(u, name);
+    const key = u.keys[name] || envKey(name);
+
+    const skip = new Set();
+    let got = null, last = null;
+    let model = modelFor(name);
+    for (let step = 0; step < 8 && !got; step++) {
+      if (!model) {
+        model = await findNextModel(name, key, skip);
+        if (!model) break;
+      }
+      skip.add(model);
+      ev({ type: "meta", provider: name, model });
+      last = await streamModel(name, key, model, messages, sys, ev, signal);
+      if (last.ok) { got = { reply: last.reply, tokens: last.tokens, model }; break; }
+      if (last.aborted) return { ok: false, aborted: true };
+      if (last.partial || !last.modelError) break;
+      model = null;
+    }
+
+    if (got) {
+      if (usingShared) {
+        shared.n[name] = (shared.n[name] || 0) + 1;
+        const L = limitOf(u, name); L.hn++; L.dn++;
+      }
+      models[name] = got.model;
+      s.ok++; s.tokens += got.tokens; u.current = name; u.reason[name] = "";
+      const fellBack = u.selected !== "auto" && u.selected !== name;
+      ev({ type: "done", provider: name, model: got.model, fellBack, shared: usingShared });
+      return { ok: true, reply: got.reply, tokens: got.tokens, provider: name, model: got.model, fellBack };
+    }
+
+    // Text already reached the phone: stop here, keep what was written, and say why it stopped.
+    if (last && last.partial) {
+      s.fail++; u.reason[name] = last.reason; u.until[name] = Date.now() + (last.cooldown || 60000);
+      ev({ type: "error", error: `${name} stopped partway: ${last.reason}`, partial: true });
+      return { ok: false };
+    }
+
+    const reason = last ? last.reason : "none of this AI's models worked for this key";
+    s.fail++; u.reason[name] = reason;
+    u.until[name] = Date.now() + (last ? last.cooldown : 60000);
+    tried.push(`${name}: ${reason}`);
+  }
+
+  let msg;
+  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
+  else if (u.selected !== "auto" && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
+  else msg = "All providers are resting right now.";
+  ev({ type: "error", error: msg, tried });
+  return { ok: false };
+}
+
 function status(u) {
   const next = planFor(u).find((n) => !resting(u, n));
   return {
     selected: u.selected, current: u.current, nextUp: next || null,
     limits: { perHour: PER_USER_HOURLY, perDay: PER_USER_DAILY },
+    profile: u.profile || { name: "", style: "" },
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name), own = !!u.keys[name];
       const L = own ? null : limitOf(u, name);
@@ -469,6 +623,15 @@ async function route(req, res) {
 
   if (req.url === "/api/status") return send(res, 200, status(u));
 
+  if (req.url === "/api/profile") {
+    u.profile = {
+      name: String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 40),
+      style: String(body.style || "").trim().slice(0, 300),
+    };
+    await saveUser(token, u);
+    return send(res, 200, { profile: u.profile });
+  }
+
   if (req.url === "/api/chats") return send(res, 200, listChats(u));
   if (req.url === "/api/chats/open") {
     const c = u.chats?.[String(body.id || "").slice(0, 40)];
@@ -481,6 +644,21 @@ async function route(req, res) {
   }
   if (req.url === "/api/chats/sync") {
     putChat(u, body.id, body.messages);
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+  if (req.url === "/api/chats/rename") {
+    const c = u.chats?.[String(body.id || "").slice(0, 40)];
+    if (!c) return send(res, 404, { error: "Chat not found" });
+    const t = String(body.title || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (t) { c.title = t; c.custom = true; }
+    await saveUser(token, u);
+    return send(res, 200, listChats(u));
+  }
+  if (req.url === "/api/chats/pin") {
+    const c = u.chats?.[String(body.id || "").slice(0, 40)];
+    if (!c) return send(res, 404, { error: "Chat not found" });
+    c.pinned = !!body.pinned;
     await saveUser(token, u);
     return send(res, 200, listChats(u));
   }
@@ -517,6 +695,23 @@ async function route(req, res) {
       await saveUser(token, u);
       return send(res, 200, out);
     } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
+  }
+  if (req.url === "/api/chat-stream" && Array.isArray(body.messages)) {
+    const hasOwn = Object.values(u.keys).some(Boolean);
+    if (!ordered(u).length) return send(res, 503, { error: "Add at least one key first. Tap the AI providers button at the top." });
+    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
+    res.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
+    const ac = new AbortController();
+    // If the phone stops the reply (or drops the connection), cancel the provider request too.
+    res.on("close", () => { if (!res.writableFinished) ac.abort(); });
+    try {
+      const out = await askStream(u, body.messages, res, ac.signal);
+      if (out.ok) putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
+    } finally {
+      await saveUser(token, u);
+      res.end();
+    }
+    return;
   }
   send(res, 404, { error: "not found" });
 }
