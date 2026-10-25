@@ -23,6 +23,10 @@
   textarea:focus, textarea:focus-visible, input:focus, input:focus-visible { outline:none; box-shadow:none; }
   .off { display:none !important; }
 
+  /* selected text: neutral grey instead of blue */
+  ::selection { background:rgba(255,255,255,.22); color:inherit; }
+  ::-moz-selection { background:rgba(255,255,255,.22); color:inherit; }
+
   .icon { width:44px; height:44px; flex:none; border-radius:50%; background:var(--raised); border:1px solid var(--line); display:grid; place-items:center; }
   .icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .btn { padding:10px 16px; border-radius:12px; font-weight:600; font-size:14px; background:var(--accent); color:var(--accent-ink); }
@@ -90,8 +94,9 @@
   .setup li { margin:4px 0; }
 
   /* chat messages */
-  .msg { max-width:88%; overflow-wrap:anywhere; -webkit-touch-callout:none; }
-  .me { align-self:flex-end; padding:10px 16px; background:var(--field); border-radius:22px 22px 6px 22px; white-space:pre-wrap; }
+  .msg { max-width:88%; overflow-wrap:anywhere; user-select:text; -webkit-user-select:text; }
+  .me { align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; }
+  .me .mtxt { padding:10px 16px; background:var(--field); border-radius:22px 22px 6px 22px; white-space:pre-wrap; }
   .bot { align-self:stretch; max-width:100%; padding:2px 0; }
   .bot .body { font-size:16.5px; line-height:1.7; color:#ececec; }
   .bot .body p { margin:0 0 12px; }
@@ -107,16 +112,22 @@
   .bot .body li { margin:6px 0; padding-left:2px; }
   .bot .body li::marker { color:var(--accent-2); font-weight:700; }
   .bot .body ol li::marker { font-weight:700; }
+  .bot .body hr { border:0; border-top:1px solid #2a2a2a; margin:18px 0; }
+  .bot .body a { color:#7cb3ff; text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
   .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
   .bot .body pre { margin:12px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
   .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
   .bot.thinking .body { color:var(--mute); }
   .meta { margin-top:10px; font-size:12px; color:var(--mute); }
   .meta:empty { display:none; }
+  .acts2 { display:flex; gap:16px; margin-top:6px; font-size:13px; }
+  .acts2 button { color:var(--mute); padding:4px 2px; font-size:13px; }
+  .acts2 button:hover { color:var(--ink); }
+  .me .acts2 { justify-content:flex-end; }
   .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; max-width:92%; }
 
-  /* composer: the + and send buttons sit in the middle of the bar */
-  .composer { padding:6px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  /* composer: the + and send buttons sit in the middle of the bar, with a footer under it */
+  .composer { padding:6px 14px calc(6px + env(safe-area-inset-bottom, 0px)); }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
   .box { max-width:720px; margin:0 auto; display:flex; align-items:center; gap:4px; padding:6px 6px 6px 6px; min-height:58px; background:var(--field); border-radius:29px; transition:box-shadow .2s ease; }
   .box:focus-within { box-shadow:0 0 0 2px rgba(79,124,255,.35); }
@@ -127,6 +138,9 @@
   #send svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s var(--ease); }
   #send svg.stop { fill:currentColor; stroke:none; }
   #send:disabled { opacity:.3; }
+  .foot { max-width:720px; margin:8px auto 0; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; }
+  .foot .tip { font-size:12px; color:#6f6f6f; }
+  .foot .disc { font-size:11.5px; color:#555; }
 
   /* overlays */
   #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .3s ease; z-index:20; }
@@ -174,9 +188,6 @@
   .sheet.show .bg { opacity:1; }
   .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); opacity:0; transition:transform .38s var(--ease), opacity .3s ease; max-height:90vh; overflow-y:auto; will-change:transform; }
   .sheet.show .sheetbody { transform:none; opacity:1; }
-  .sheetbody > button { display:block; width:100%; padding:15px 8px; font-size:17px; text-align:center; border-bottom:1px solid var(--line); }
-  .sheetbody > button:last-child { border-bottom:0; color:var(--mute); }
-  .sheetbody .danger { color:#f87171; }
   .sheetbody .btn.block { border-bottom:0; padding:14px; font-size:16px; border-radius:14px; margin-top:12px; }
   .grip { width:40px; height:5px; border-radius:3px; background:#3a3a3a; margin:6px auto 12px; }
   .dropcard { margin:0 0 8px; padding:8px; background:var(--raised); border:1px solid var(--line); border-radius:22px; box-shadow:0 18px 40px rgba(0,0,0,.5); }
@@ -296,6 +307,10 @@
       <textarea id="q" rows="1" placeholder="Ask AI Relay" aria-label="Message"></textarea>
       <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
+    <div class="foot">
+      <span class="tip">Hold a reply to select and copy part of it</span>
+      <span class="disc">AI Relay can make mistakes. Check important information.</span>
+    </div>
   </form>
 
   <div id="scrim"></div>
@@ -317,19 +332,6 @@
     <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
     <div id="cards" style="overflow-y:auto;flex:1"></div>
   </aside>
-
-  <div id="sheet" class="sheet">
-    <div class="bg" data-close></div>
-    <div class="sheetbody">
-      <div class="grip"></div>
-      <div class="dropcard drop">
-        <button type="button" class="opt" data-do="copy"><span class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span><span class="tx"><b>Copy</b><small>Copy this message</small></span></button>
-        <button type="button" class="opt" data-do="edit"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span class="tx"><b>Edit</b><small>Change and resend from here</small></span></button>
-        <button type="button" class="opt" data-do="del"><span class="ic" style="color:#f87171"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></span><span class="tx"><b style="color:#f87171">Delete</b><small>Remove this message</small></span></button>
-      </div>
-      <button type="button" class="cancelbtn" data-do="cancel">Cancel</button>
-    </div>
-  </div>
 
   <div id="attach" class="sheet">
     <div class="bg" data-close></div>
@@ -453,16 +455,27 @@ function updateGreeting() {
 $("homeBtn").onclick = () => openSheetEl("hsheet");
 $("sideHome").onclick = () => openSheetEl("hsheet");
 
-// --- formatter: headings, bold, italics, lists, code, paragraphs (escapes everything first, so it is safe) ---
+// --- formatter: headings, bold, italics, lists, code, links, paragraphs (escapes everything first, so it is safe) ---
 const TICK = String.fromCharCode(96);
 const FENCE = new RegExp(TICK + TICK + TICK + "(?:\\w+)?\\n?([\\s\\S]*?)" + TICK + TICK + TICK);
 const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
+// Matches [label](https://...) or a bare https:// address.
+const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"()\[\]]+)/g;
+function linkRepl(m, label, murl, burl) {
+  if (label) return `<a href="${murl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  // Keep trailing punctuation and the escaped "&gt;" / "&quot;" out of the link.
+  let url = burl, tail = "";
+  const t = url.match(/(?:&gt;|&quot;|[.,;:!?'])+$/);
+  if (t) { tail = t[0]; url = url.slice(0, -tail.length); }
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+}
 function inline(t) {
   return t
     .replace(INLINE, "<code>$1</code>")
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
-    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>");
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>")
+    .replace(LINK_RE, linkRepl);
 }
 function textBlock(s) {
   const out = [];
@@ -473,6 +486,7 @@ function textBlock(s) {
     const line = raw.trimEnd();
     let m;
     if (!line.trim()) { flushPara(); flushList(); continue; }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushPara(); flushList(); out.push("<hr>"); continue; }
     if ((m = line.match(/^(#{1,3})\s+(.+)$/))) { flushPara(); flushList(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
     if ((m = line.match(/^\s*[-*•]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(m[1]); continue; }
     if ((m = line.match(/^\s*\d+[.)]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(m[1]); continue; }
@@ -647,14 +661,15 @@ async function syncChat() {
 }
 
 // --- messages ---
+// Your messages get Edit and Delete under them. Replies get Copy under them.
 function add(cls, text, meta, idx, quiet) {
   $("empty").classList.add("off");
   const d = document.createElement("div"); d.className = "msg " + cls;
   if (idx !== undefined) d.dataset.i = idx;
   if (cls === "bot") {
-    d.innerHTML = `<div class="body">${fmt(text)}</div><div class="meta">${esc(meta || "")}</div>`;
+    d.innerHTML = `<div class="body">${fmt(text)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
   } else {
-    d.appendChild(document.createTextNode(text));
+    d.innerHTML = `<div class="mtxt">${esc(text)}</div><div class="acts2"><button type="button" data-act="edit">Edit</button><button type="button" data-act="del">Delete</button></div>`;
   }
   col.appendChild(d);
   if (!quiet) { d.classList.add("pop"); log.scrollTo({ top: log.scrollHeight, behavior: "smooth" }); }
@@ -675,6 +690,23 @@ function cancelEdit(keepText) {
 }
 $("editcancel").onclick = () => cancelEdit(false);
 $("sugg").onclick = e => { const s = e.target.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
+
+// Copy / Edit / Delete buttons under messages.
+col.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const msg = b.closest(".msg"); if (!msg) return;
+  const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
+  const act = b.dataset.act;
+  if (act === "copy") {
+    try { await navigator.clipboard.writeText(String(m.content)); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1200); }
+    catch { alert("Could not copy. Long-press the text to select it instead."); }
+  }
+  if (act === "edit") { editing = i; q.value = String(m.content); q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
+  if (act === "del") {
+    const n = history[i + 1]?.role === "assistant" ? 2 : 1;
+    history.splice(i, n); cancelEdit(false); redraw(false); syncChat();
+  }
+});
 
 q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
 q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) $("f").requestSubmit(); } });
@@ -698,6 +730,7 @@ $("f").addEventListener("submit", async e => {
   const mine = add("me", text, "", history.length - 1);
   const bubble = add("bot", "Thinking…", "", history.length, true);
   bubble.classList.add("thinking", "pop");
+  bubble.querySelector(".acts2").classList.add("off"); // hidden until the reply is finished
   log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
 
   setBusy(true);
@@ -759,6 +792,7 @@ $("f").addEventListener("submit", async e => {
     if (stopped) meta += " · stopped";
     bubble.classList.remove("thinking");
     showMeta();
+    bubble.querySelector(".acts2").classList.remove("off");
     history.push({ role: "assistant", content: full, meta });
     toStart(bubble);
     if (errorInfo && !stopped) add("note", errorInfo.error);
@@ -772,39 +806,6 @@ $("f").addEventListener("submit", async e => {
   }
   syncChat();
   refresh();
-});
-
-// --- hold a message to copy / edit / delete ---
-let lp = null, lpAt = null, target = null, sheetAt = 0;
-function openMsgSheet(el) {
-  const i = Number(el.dataset.i), m = history[i]; if (!m) return;
-  target = i; sheetAt = Date.now();
-  const mine = m.role === "user";
-  document.querySelector('#sheet [data-do="edit"]').classList.toggle("off", !mine);
-  document.querySelector('#sheet [data-do="del"]').classList.toggle("off", !mine);
-  openSheetEl("sheet");
-}
-col.addEventListener("pointerdown", e => {
-  const m = e.target.closest(".msg[data-i]"); if (!m) return;
-  lpAt = { x: e.clientX, y: e.clientY }; clearTimeout(lp);
-  lp = setTimeout(() => { lp = null; navigator.vibrate?.(12); openMsgSheet(m); }, 450);
-});
-col.addEventListener("pointermove", e => { if (lp && Math.hypot(e.clientX - lpAt.x, e.clientY - lpAt.y) > 10) { clearTimeout(lp); lp = null; } });
-["pointerup", "pointercancel", "pointerleave"].forEach(ev => col.addEventListener(ev, () => { clearTimeout(lp); lp = null; }));
-col.addEventListener("contextmenu", e => { const m = e.target.closest(".msg[data-i]"); if (m) { e.preventDefault(); clearTimeout(lp); openMsgSheet(m); } });
-
-$("sheet").addEventListener("click", async e => {
-  if (Date.now() - sheetAt < 400) return; // ignore the finger lifting from the long-press
-  const b = e.target.closest("[data-do]"); if (!b) return;
-  const act = b.dataset.do;
-  const m = history[target];
-  closeSheets();
-  if (act === "copy" && m) { try { await navigator.clipboard.writeText(String(m.content)); } catch {} }
-  if (act === "edit" && m) { editing = target; q.value = String(m.content); q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
-  if (act === "del" && m) {
-    const n = history[target + 1]?.role === "assistant" ? 2 : 1;
-    history.splice(target, n); cancelEdit(false); redraw(false); syncChat();
-  }
 });
 
 // --- sign in ---
