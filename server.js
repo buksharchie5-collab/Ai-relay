@@ -39,9 +39,6 @@ const PROVIDERS = {
   Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search?per_page=100`, model: "@cf/openai/gpt-oss-120b", known: ["@cf/deepseek-ai/deepseek-v4-pro-0813"], lookup: true, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
 
-// AIs that can read photos. Photos are only sent to these.
-const VISION = ["Mistral"];
-
 // Keys come from Render's environment, e.g. GROQ_API_KEY, MISTRAL_API_KEY, CLOUDFLARE_API_KEY
 const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
 const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
@@ -125,11 +122,8 @@ function makeIcon(size) {
 const iconCache = {};
 const iconFor = (size) => (iconCache[size] ||= makeIcon(size));
 
-// --- text helpers: a message is either plain text or [text part, image part] ---
+// --- text helpers ---
 const textOf = (c) => Array.isArray(c) ? ((c.find((p) => p && p.type === "text") || {}).text || "") : String(c ?? "");
-const hasPhoto = (c) => Array.isArray(c) && c.some((p) => p && p.type === "image_url");
-// Text version used when saving chats (photos aren't stored, so we keep a marker)
-const plain = (c) => hasPhoto(c) ? (textOf(c) + " [photo]").trim() : textOf(c);
 
 // --- storage: Upstash Redis when configured, otherwise one encrypted local file per access key ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
@@ -179,7 +173,7 @@ function secondsUntilMidnightUTC() {
   const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
   return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
 }
-// Friendly reset time, e.g. "tomorrow at 00:00 UTC (in 7 hours)".
+// Friendly reset time, e.g. "in about 7 hours".
 function resetMessage() {
   const secs = secondsUntilMidnightUTC();
   const hours = Math.floor(secs / 3600), mins = Math.ceil((secs % 3600) / 60);
@@ -222,7 +216,7 @@ function putChat(u, id, messages) {
   if (!messages.length) { delete u.chats[key]; return; }
   const clean = messages.slice(-MAX_MESSAGES).map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: plain(m.content).slice(0, 20000),
+    content: textOf(m.content).slice(0, 20000),
     meta: String(m.meta || "").slice(0, 200),
   }));
   const first = clean.find((m) => m.role === "user");
@@ -317,22 +311,8 @@ function trimContext(messages, n) {
   let out = messages.slice(-n);
   while (out.length && out[0].role !== "user") out = out.slice(1);
   return out.map((m) => {
-    if (hasPhoto(m.content)) return m;
     const t = textOf(m.content);
     return { role: m.role, content: t.length > CONTEXT_CHARS ? t.slice(-CONTEXT_CHARS) : t };
-  });
-}
-
-// Shape the messages for one AI. Text-only AIs get text; only the newest photo is sent to photo-capable AIs.
-function prepare(name, messages) {
-  const last = messages.length - 1;
-  return messages.map((m, i) => {
-    if (!hasPhoto(m.content)) return { role: m.role, content: textOf(m.content) };
-    if (!VISION.includes(name) || i !== last) return { role: m.role, content: plain(m.content) };
-    if (name === "Mistral") {
-      return { role: m.role, content: m.content.map((p) => p.type === "image_url" ? { type: "image_url", image_url: p.image_url.url } : p) };
-    }
-    return { role: m.role, content: m.content };
   });
 }
 
@@ -346,7 +326,7 @@ async function callModel(name, key, model, messages) {
       const res = await fetch(p.url, {
         method: "POST",
         headers: headersFor(key),
-        body: JSON.stringify({ model, messages: prepare(name, ctx), max_tokens: 1024 }),
+        body: JSON.stringify({ model, messages: ctx, max_tokens: 1024 }),
         signal: AbortSignal.timeout(45000),
       });
       const text = await res.text();
@@ -375,19 +355,7 @@ async function callModel(name, key, model, messages) {
 // only = ask just this AI (used by the Test button). test = don't count it against limits.
 async function ask(u, messages, only, test) {
   const tried = [];
-  const photo = hasPhoto(messages[messages.length - 1]?.content);
   let list = only ? [only] : planFor(u);
-  if (photo) {
-    const ok = list.filter((n) => VISION.includes(n));
-    if (!ok.length) {
-      const pinned = !only && u.selected !== "auto" && !VISION.includes(u.selected) ? u.selected : null;
-      const err = new Error(pinned
-        ? `${pinned} can't read photos. Pick Mistral in AI providers, or choose Auto-switch.`
-        : "Photos only work with Mistral right now. Add a free Mistral key in AI providers.");
-      err.tried = []; throw err;
-    }
-    list = ok;
-  }
   let limited = 0;
   for (const name of list) {
     if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
@@ -486,7 +454,7 @@ async function route(req, res) {
   if (req.url === "/api/signup" && req.method === "POST") {
     // Limit per device. The app sends a random device ID it stores on the phone.
     const device = String(body.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
-    if (!device) return send(res, 400, { error: "Open AI Relay in the app or browser on this device, then tap Create my key again." });
+    if (!device) return send(res, 400, { error: "Could not identify this device. Reload the page and tap Create my key again." });
     const count = await bumpDeviceCountToday(device);
     if (count > MAX_KEYS_PER_DEVICE_PER_DAY) {
       return send(res, 429, { error: resetMessage() });
