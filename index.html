@@ -573,4 +573,17 @@ $("go").onclick = async () => { show(true); await refresh(); loadChats(); };
 $("enter").onclick = async () => {
   const k = $("have").value.trim();
   $("lerr").textContent = "";
-  if (!k) { $("lerr").textContent = "Paste your personal key first, or
+  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Create my key to make one."; return; }
+  if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
+  if (notServed()) { $("lerr").textContent = serverMsg; return; }
+  localStorage.setItem("freeai-key", k);
+  try { st = await api("/api/status"); show(true); render(); loadChats(); }
+  catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
+};
+
+// --- start ---
+if (getKey()) { show(true); refresh(); loadChats(); } else show(false);
+setInterval(() => { if (!document.activeElement || document.activeElement.tagName !== "INPUT") refresh(); }, 5000);
+</script>
+</body>
+</html>
