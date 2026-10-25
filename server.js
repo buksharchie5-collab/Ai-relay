@@ -5,9 +5,15 @@ const path = require("path");
 const crypto = require("crypto");
 const zlib = require("zlib");
 
-// Accounts and chats are saved as local files in this folder.
+// Accounts and chats are saved in Upstash Redis when its two env vars are set (survives redeploys).
+// Otherwise they go to local files, which Render's free plan erases on every restart.
+const UP_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const USE_REDIS = !!(UP_URL && UP_TOKEN);
+
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
+if (!USE_REDIS) console.log("Note: no Upstash set, so accounts and chats are not kept between deploys on Render's free plan.");
 
 // Fair-use limits. On shared keys these apply to EACH AI separately. Your own keys aren't capped.
 const PER_USER_HOURLY = 20; // messages per person per AI per hour
@@ -124,14 +130,33 @@ const hasPhoto = (c) => Array.isArray(c) && c.some((p) => p && p.type === "image
 // Text version used when saving chats (photos aren't stored, so we keep a marker)
 const plain = (c) => hasPhoto(c) ? (textOf(c) + " [photo]").trim() : textOf(c);
 
-// --- storage: one encrypted file per access key (the key itself is never stored) ---
+// --- storage: Upstash Redis when configured, otherwise one encrypted local file per access key ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
-const fileOf = (t) => path.join(DIR, sha("id:" + t).toString("hex") + ".bin");
+const idOf = (t) => sha("id:" + t).toString("hex");
+const fileOf = (t) => path.join(DIR, idOf(t) + ".bin");
+
+// Talks to Upstash over its REST API. Each command is a JSON array, e.g. ["GET", "key"].
+async function redis(cmd) {
+  const r = await fetch(UP_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${UP_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(cmd),
+    signal: AbortSignal.timeout(10000),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error("storage: " + j.error);
+  return j.result;
+}
 
 async function readBlob(t) {
+  if (USE_REDIS) {
+    const v = await redis(["GET", "relay:" + idOf(t)]);
+    return v ? Buffer.from(v, "base64") : null;
+  }
   try { return fs.readFileSync(fileOf(t)); } catch { return null; }
 }
 async function writeBlob(t, buf) {
+  if (USE_REDIS) return redis(["SET", "relay:" + idOf(t), buf.toString("base64")]);
   fs.writeFileSync(fileOf(t), buf);
 }
 
