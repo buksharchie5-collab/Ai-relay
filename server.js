@@ -1,4 +1,4 @@
-// AI Relay — personal keys, plus shared keys with fair-use limits.
+// AI Relay: personal keys, plus shared keys with fair-use limits.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -17,10 +17,10 @@ if (!USE_REDIS) console.log("Note: no Upstash set, so accounts and chats are not
 
 // Fair-use limits. On shared keys these apply to EACH AI separately. Your own keys aren't capped.
 const PER_USER_HOURLY = 20; // messages per person per AI per hour
-const PER_USER_DAILY = 70;  // messages per person per AI per day
+const PER_USER_DAILY = 20;  // messages per person per AI per day
 const MAX_CHATS = 50;       // saved chats per person
 const MAX_MESSAGES = 200;   // messages kept per chat
-const MAX_KEYS_PER_NETWORK_PER_DAY = 5; // personal keys one network can create per day (resets at midnight UTC)
+const MAX_KEYS_PER_DEVICE_PER_DAY = 5; // personal keys one device can create per day (resets at midnight UTC)
 
 // Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
 const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
@@ -161,13 +161,12 @@ async function writeBlob(t, buf) {
   fs.writeFileSync(fileOf(t), buf);
 }
 
-// Counts how many personal keys a network has created today. The counter expires at midnight UTC.
+// Counts how many personal keys a device has created today. The counter expires at midnight UTC.
 const memCounts = {};
-async function bumpNetworkCountToday(ip) {
-  const day = today();
-  const id = sha("net:" + day + ":" + ip).toString("hex");
+async function bumpDeviceCountToday(deviceId) {
+  const id = sha("device:" + today() + ":" + deviceId).toString("hex");
   if (USE_REDIS) {
-    const key = "netcount:" + id;
+    const key = "devcount:" + id;
     const count = Number(await redis(["INCR", key]));
     if (count === 1) await redis(["EXPIRE", key, String(secondsUntilMidnightUTC())]);
     return count;
@@ -185,7 +184,7 @@ function resetMessage() {
   const secs = secondsUntilMidnightUTC();
   const hours = Math.floor(secs / 3600), mins = Math.ceil((secs % 3600) / 60);
   const when = hours > 0 ? `${hours} hour${hours === 1 ? "" : "s"}${mins ? " " + mins + " min" : ""}` : `${mins} min`;
-  return `You've reached the limit of ${MAX_KEYS_PER_NETWORK_PER_DAY} personal keys from this network today. You can create more tomorrow at 00:00 UTC, in about ${when}.`;
+  return `You've reached the limit of ${MAX_KEYS_PER_DEVICE_PER_DAY} personal keys on this device today. You can create more tomorrow at 00:00 UTC, in about ${when}.`;
 }
 
 const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {} });
@@ -485,9 +484,11 @@ async function route(req, res) {
   let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
 
   if (req.url === "/api/signup" && req.method === "POST") {
-    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-    const count = await bumpNetworkCountToday(ip);
-    if (count > MAX_KEYS_PER_NETWORK_PER_DAY) {
+    // Limit per device. The app sends a random device ID it stores on the phone.
+    const device = String(body.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
+    if (!device) return send(res, 400, { error: "Open AI Relay in the app or browser on this device, then tap Create my key again." });
+    const count = await bumpDeviceCountToday(device);
+    if (count > MAX_KEYS_PER_DEVICE_PER_DAY) {
       return send(res, 429, { error: resetMessage() });
     }
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
