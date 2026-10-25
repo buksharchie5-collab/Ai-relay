@@ -36,7 +36,9 @@
   input::placeholder, textarea::placeholder { color:#777; }
 
   /* sign in */
-  #login { min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
+  #login { position:relative; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
+  .corner-btn { position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px; padding:8px 12px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
+  .corner-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
   .hero { width:100%; max-width:440px; text-align:center; }
   .logo-tile { width:64px; height:64px; margin:0 auto 14px; border-radius:18px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-size:30px; font-weight:700; box-shadow:0 12px 32px rgba(56,130,255,.35); }
   .hero h1 { font-size:30px; font-weight:800; letter-spacing:-0.02em; margin:0 0 6px; }
@@ -136,7 +138,7 @@
   .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
   .seg { display:inline-flex; margin-bottom:10px; }
 
-  /* bottom sheets: message menu, + menu, usage */
+  /* bottom sheets: message menu, + menu, usage, home screen guide */
   .sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
   .sheet .bg { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .25s ease; }
   .sheet.show { pointer-events:auto; }
@@ -152,11 +154,22 @@
   .urow b { display:block; font-size:15px; }
   .urow span { color:var(--mute); display:block; }
   .sheettitle { margin:6px 2px 4px; font-size:18px; font-weight:700; }
+  .guide { padding:4px 6px 8px; }
+  .guide p { color:var(--mute); font-size:14px; margin:0 0 12px; }
+  .guide .step { margin:10px 0; }
+  .guide .step .num { width:26px; height:26px; }
+  .guide .step b { font-size:15px; }
+  .guide .tip { margin-top:14px; padding:10px 12px; background:var(--raised); border-radius:12px; font-size:13px; color:var(--mute); }
+  .guide .tip b { color:var(--ink); }
 </style>
 </head>
 <body>
 
 <div id="login" class="off">
+  <button id="homeBtn" class="corner-btn" type="button" aria-label="Add AI Relay to your Home Screen">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen
+  </button>
+
   <header class="hero">
     <div class="logo-tile">⇄</div>
     <h1>AI Relay</h1>
@@ -245,6 +258,7 @@
     <div class="shead"><div class="brand"><span class="logo">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="nav" id="sideNew" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProviders" type="button"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span>AI providers</button>
+    <button class="nav" id="sideHome" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
     <div class="label">Your chats</div>
     <div id="chatlist"></div>
     <div class="sidefoot"><span id="acctline"></span><button id="sideOut" class="btn ghost small" type="button">Sign out</button></div>
@@ -287,6 +301,21 @@
       <button type="button" data-close>Done</button>
     </div>
   </div>
+
+  <div id="hsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="sheettitle">Add to Home Screen</div>
+      <div class="guide">
+        <p>Open AI Relay in Safari and it can sit on your Home Screen like an app.</p>
+        <div class="step"><span class="num">1</span><span><b>Open in Safari.</b> This only works in Safari, not Chrome.</span></div>
+        <div class="step"><span class="num">2</span><span><b>Tap Share.</b> It's the square with an arrow at the bottom of the screen.</span></div>
+        <div class="step"><span class="num">3</span><span><b>Tap Add to Home Screen,</b> then tap <b>Add</b> in the top right.</span></div>
+        <div class="tip"><b>Tip:</b> Open AI Relay from the new icon. It runs full screen with no Safari bar.</div>
+      </div>
+      <button type="button" data-close>Got it</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -318,6 +347,10 @@ document.addEventListener("click", e => { if (e.target.dataset && e.target.datas
 
 function signOut() { localStorage.removeItem("freeai-key"); st = null; history = []; chatId = newId(); closeAll(); closeSheets(); clearPending(); redraw(false); show(false); }
 async function refresh() { if (!getKey()) return; try { st = await api("/api/status"); render(); } catch {} }
+
+// --- Home Screen guide: from the sign-in corner button and the menu ---
+$("homeBtn").onclick = () => openSheetEl("hsheet");
+$("sideHome").onclick = () => openSheetEl("hsheet");
 
 // --- tiny safe formatter: code blocks, inline code, bold, bullets ---
 const fmt = t => t.split(/```(?:\w+)?\n?([\s\S]*?)```/).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : esc(s)
