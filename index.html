@@ -117,6 +117,7 @@
   .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
   .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
   .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
+  .bot .body sup { font-size:.7em; line-height:0; }
 
   /* tables with a grid (only when you ask for a table or comparison). Text wraps inside cells, never sideways. */
   .bot .body .tbl { margin:18px 0 22px; width:100%; max-width:100%; overflow:hidden; background:transparent; }
@@ -490,7 +491,21 @@ function linkRepl(m, label, murl, burl) {
   if (t) { tail = t[0]; url = url.slice(0, -tail.length); }
   return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
 }
+// Tidies up text the AI wrote with LaTeX maths, so it reads cleanly.
+function cleanMaths(t) {
+  return t
+    .replace(/\\[()\[\]]/g, "")                 // remove \( \) \[ \] wrappers
+    .replace(/\\approx/g, "≈")
+    .replace(/\\times/g, "×")
+    .replace(/\\text\{([^}]*)\}/g, "$1")         // \text{m/s} becomes m/s
+    .replace(/\\[, ]/g, " ")
+    .replace(/\^(\d+)/g, "<sup>$1</sup>")        // ^2 becomes a small 2
+    .replace(/\\(?=[a-zA-Z])/g, "");             // any leftover backslash before a word
+}
 function inline(t) {
+  t = cleanMaths(t)
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>")       // <br> becomes a real line break
+    .replace(/\s*•\s*/g, (m, off) => (off === 0 ? "• " : "<br>• "));
   return t
     .replace(INLINE, "<code>$1</code>")
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
@@ -510,15 +525,12 @@ function gridHtml(head, body) {
   return h + "</table></div>";
 }
 // Table as readable cards (the default). The first column becomes the heading of each card,
-// and the other columns become labelled lines underneath. No grid, no sideways scrolling.
+// and the other columns become lines underneath. No grid, no sideways scrolling.
 function cardsHtml(head, body) {
   return body.map(cells => {
     const title = cells.length > 2 ? `${cells[0]} · ${cells[1]}` : cells[0];
     const from = cells.length > 2 ? 2 : 1;
-    const lines = cells.slice(from).map((c, i) => {
-      const label = head && head[from + i] ? `<span>${inline(head[from + i])}</span>` : "";
-      return `<div class="rl">${label}${inline(c)}</div>`;
-    }).join("");
+    const lines = cells.slice(from).map(c => `<div class="rl">${inline(c)}</div>`).join("");
     return `<div class="rc"><div class="rt">${inline(title || "")}</div>${lines}</div>`;
   }).join("");
 }
