@@ -1,724 +1,891 @@
-// AI Relay: personal keys, plus shared keys with fair-use limits.
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-const zlib = require("zlib");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Relay">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>AI Relay</title>
+<style>
+  :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); }
+  body { color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  button, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; background:none; border:0; padding:0; transition:background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease, transform .15s var(--ease); -webkit-tap-highlight-color:transparent; }
+  button:active { transform:scale(.96); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  textarea:focus, textarea:focus-visible, input:focus, input:focus-visible { outline:none; box-shadow:none; }
+  .off { display:none !important; }
 
-// Accounts and chats are saved in Upstash Redis when its two env vars are set (survives redeploys).
-// Otherwise they go to local files, which Render's free plan erases on every restart.
-const UP_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const USE_REDIS = !!(UP_URL && UP_TOKEN);
+  /* selected text: neutral grey instead of blue */
+  ::selection { background:rgba(255,255,255,.22); color:inherit; }
+  ::-moz-selection { background:rgba(255,255,255,.22); color:inherit; }
 
-const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
-fs.mkdirSync(DIR, { recursive: true });
-if (!USE_REDIS) console.log("Note: no Upstash set, so accounts and chats are not kept between deploys on Render's free plan.");
+  .icon { width:44px; height:44px; flex:none; border-radius:50%; background:var(--raised); border:1px solid var(--line); display:grid; place-items:center; }
+  .icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .btn { padding:10px 16px; border-radius:12px; font-weight:600; font-size:14px; background:var(--accent); color:var(--accent-ink); }
+  .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
+  .btn.small { padding:6px 12px; font-size:13px; border-radius:10px; }
+  .btn.on { background:var(--accent); color:#fff; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--off); flex:none; transition:background-color .4s ease; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); }
+  .row { display:flex; gap:8px; }
+  input[type=password] { flex:1; min-width:0; padding:11px 12px; font-size:16px; background:var(--field); border:1px solid var(--line); border-radius:10px; transition:border-color .2s ease, box-shadow .2s ease; }
+  input[type=password]:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,124,255,.2); }
+  input::placeholder, textarea::placeholder { color:#777; }
 
-// Fair-use limits. On shared keys these apply to EACH AI separately. Your own keys aren't capped.
-const PER_USER_HOURLY = 20; // messages per person per AI per hour
-const PER_USER_DAILY = 20;  // messages per person per AI per day
-const MAX_CHATS = 50;       // saved chats per person
-const MAX_MESSAGES = 200;   // messages kept per chat
-const MAX_KEYS_PER_DEVICE_PER_DAY = 5; // personal keys one device can create per day (resets at midnight UTC)
+  /* motion */
+  @keyframes pageIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @keyframes msgIn { from { opacity:0; transform:translateY(12px) scale(.985); } to { opacity:1; transform:none; } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @keyframes breathe { 0%,100% { opacity:.45; } 50% { opacity:1; } }
+  .enter { animation:pageIn .42s var(--ease) both; }
+  .pop { animation:msgIn .34s var(--ease) both; }
+  .appear { animation:pageIn .36s var(--ease) both; }
+  .fade-in { animation:fadeIn .3s var(--ease) both; }
+  .bot.thinking .body { animation:breathe 1.3s ease-in-out infinite; }
 
-// Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
-const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
-const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
+  /* sign in */
+  #login { position:relative; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
+  .corner-btn { position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px; padding:8px 12px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
+  .corner-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .hero { width:100%; max-width:440px; text-align:center; }
+  .logo-tile { width:64px; height:64px; margin:0 auto 14px; border-radius:18px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-size:30px; font-weight:700; box-shadow:0 12px 32px rgba(56,130,255,.35); }
+  .hero h1 { font-size:30px; font-weight:800; letter-spacing:-0.02em; margin:0 0 6px; }
+  .hero p { color:var(--mute); margin:0; font-size:15px; }
+  .panel { width:100%; max-width:440px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:20px; transition:opacity .3s ease, transform .3s var(--ease); }
+  .panel h2 { font-size:17px; margin:0 0 4px; font-weight:700; }
+  .panel .sub { color:var(--mute); font-size:14px; margin:0 0 14px; }
+  .btn.block { width:100%; padding:14px; font-size:16px; border-radius:14px; }
+  .keyrow { display:flex; gap:8px; align-items:stretch; }
+  .keyrow input { flex:1; min-width:0; height:50px; }
+  .keyrow .btn { flex:none; padding:0 20px; border-radius:14px; font-size:15px; }
+  .or { display:flex; align-items:center; gap:12px; width:100%; max-width:440px; color:var(--mute); font-size:13px; transition:opacity .3s ease; }
+  .or::before, .or::after { content:""; flex:1; height:1px; background:var(--line); }
+  .steps { width:100%; max-width:440px; display:grid; gap:10px; }
+  .step { display:flex; gap:12px; align-items:flex-start; color:var(--mute); font-size:14px; }
+  .step b { color:var(--ink); font-weight:600; }
+  .step .num { flex:none; width:24px; height:24px; border-radius:50%; background:var(--raised); border:1px solid var(--line); display:grid; place-items:center; font-size:12px; font-weight:700; color:var(--ink); }
+  code.key { display:block; padding:12px; margin:0 0 12px; background:var(--field); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
+  .err { width:100%; max-width:440px; color:var(--warn); font-size:14px; min-height:20px; margin:0; text-align:center; transition:opacity .2s ease; }
 
-// `model` = first model name to try. If it isn't available, the app tries the names in `known`, then, if `lookup`
-// is true, the text models the provider lists for your key. `daily` = messages per day on the SHARED key
-// (set in Render as NAME_API_KEY). Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0.
-// `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
-const PROVIDERS = {
-  Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "openai/gpt-oss-20b"], lookup: false, keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
-  Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], lookup: false, keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
-  NVIDIA: { url: "https://integrate.api.nvidia.com/v1/chat/completions", listUrl: "https://integrate.api.nvidia.com/v1/models", model: "nvidia/nemotron-3.5-super-vl-120b-a12b", known: [], lookup: false, keyUrl: "https://build.nvidia.com", daily: 500, paid: false },
-  Mistral: { url: "https://api.mistral.ai/v1/chat/completions", listUrl: "https://api.mistral.ai/v1/models", model: "mistral-small-latest", known: ["mistral-medium-latest", "open-mistral-nemo"], lookup: false, keyUrl: "https://console.mistral.ai", daily: 200, paid: false },
-  OpenRouter: { url: "https://openrouter.ai/api/v1/chat/completions", listUrl: "https://openrouter.ai/api/v1/models", model: "mistralai/mistral-large-4-0", known: ["google/gemma-3-27b-it:free"], lookup: false, keyUrl: "https://openrouter.ai/keys", daily: 45, paid: false },
-  Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search?per_page=100`, model: "@cf/openai/gpt-oss-120b", known: ["@cf/deepseek-ai/deepseek-v4-pro-0813"], lookup: true, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
+  /* app shell: fixed to the whole screen so the chat box sits at the very bottom */
+  #app { position:fixed; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px; }
+  .pill { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:14px; font-weight:600; max-width:55vw; }
+  .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  #log { flex:1; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:10px 18px 22px; scroll-behavior:auto; }
+  .col { max-width:720px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; gap:30px; }
+  #empty { margin:auto 0; padding-top:8vh; transition:opacity .3s ease, transform .3s var(--ease); }
+  #empty.off { opacity:0; transform:translateY(-6px); }
+  #empty h2 { font-size:28px; font-weight:700; letter-spacing:-0.01em; margin:0 0 18px; }
+  .sugg button { display:block; width:100%; text-align:left; padding:14px 2px; font-size:16px; border-bottom:1px solid var(--line); }
+  .sugg button:hover { color:#fff; }
+  .setup { margin:0 0 20px; padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .setup strong { display:block; margin-bottom:6px; }
+  .setup ol { margin:8px 0 12px; padding-left:20px; color:var(--mute); font-size:14px; }
+  .setup li { margin:4px 0; }
+
+  /* chat messages */
+  .msg { max-width:88%; overflow-wrap:anywhere; user-select:text; -webkit-user-select:text; }
+  .me { align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; }
+  .me .mtxt { padding:10px 16px; background:var(--field); border-radius:22px 22px 6px 22px; white-space:pre-wrap; }
+  .bot { align-self:stretch; max-width:100%; padding:4px 0; }
+  .bot .body { font-size:16.5px; line-height:1.75; color:#ececec; }
+  .bot .body p { margin:0 0 18px; }
+  .bot .body p:last-child { margin-bottom:0; }
+  .bot .body strong { color:#fff; font-weight:700; }
+  .bot .body em { color:#d8d8d8; }
+  .bot .body h2, .bot .body h3, .bot .body h4 { color:#fff; line-height:1.3; letter-spacing:-0.01em; margin:30px 0 12px; }
+  .bot .body h2 { font-size:22px; font-weight:800; }
+  .bot .body h3 { font-size:19px; font-weight:750; }
+  .bot .body h4 { font-size:17px; font-weight:700; }
+  .bot .body h2:first-child, .bot .body h3:first-child, .bot .body h4:first-child { margin-top:0; }
+  .bot .body ul, .bot .body ol { margin:10px 0 20px; padding-left:24px; }
+  .bot .body li { margin:12px 0; padding-left:4px; }
+  .bot .body li::marker { color:var(--accent-2); font-weight:700; }
+  .bot .body ol li::marker { font-weight:700; }
+  .bot .body hr { border:0; border-top:1px solid #2a2a2a; margin:28px 0; }
+  .bot .body a { color:#7cb3ff; text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
+  .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
+  .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
+  .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
+
+  /* tables: fixed column widths so the middle column is never squashed; nothing scrolls sideways */
+  .bot .body .tbl { margin:18px 0 22px; border:1px solid #2a2a2a; border-radius:14px; background:#101010; overflow:hidden; }
+  .bot .body table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:15px; line-height:1.55; }
+  .bot .body th, .bot .body td { text-align:left; padding:13px 12px; border-bottom:1px solid #222; vertical-align:top; overflow-wrap:break-word; word-break:normal; }
+  .bot .body th { background:#1b1b1b; color:#fff; font-weight:700; }
+  .bot .body td { color:#e2e2e2; }
+  .bot .body th:nth-child(1), .bot .body td:nth-child(1) { width:50px; text-align:center; color:#fff; font-weight:700; }
+  .bot .body th:nth-child(2), .bot .body td:nth-child(2) { width:32%; font-weight:600; color:#fff; }
+  .bot .body tr:last-child td { border-bottom:0; }
+  .bot.thinking .body { color:var(--mute); }
+  .meta { margin-top:14px; font-size:12px; color:var(--mute); }
+  .meta:empty { display:none; }
+  .acts2 { display:flex; gap:16px; margin-top:10px; font-size:13px; }
+  .acts2 button { color:var(--mute); padding:4px 2px; font-size:13px; }
+  .acts2 button:hover { color:var(--ink); }
+  .me .acts2 { justify-content:flex-end; }
+  .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; max-width:92%; }
+
+  /* composer: rounded card like the Claude app. Text on top, controls underneath. */
+  .composer { padding:0 14px 4px; }
+  .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
+  .box { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px; background:#1c1c1c; border:1px solid #2c2c2c; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.35); transition:box-shadow .2s ease, border-color .2s ease; }
+  .box:focus-within { border-color:#3a3a3a; box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(79,124,255,.25); }
+  textarea { width:100%; min-height:26px; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; line-height:1.45; padding:4px 4px; margin:0; display:block; color:var(--ink); transition:height .15s ease; }
+  .bar { display:flex; align-items:center; gap:8px; }
+  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; background:#2a2a2a; font-size:24px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; }
+  .plusbtn:hover { background:#333; }
+  .mpill { display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:99px; background:#2a2a2a; font-size:15px; font-weight:600; color:var(--ink); min-width:0; max-width:60%; }
+  .mpill:hover { background:#333; }
+  #mprov { color:var(--mute); font-weight:500; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .grow { flex:1; }
+  #send { width:40px; height:40px; flex:none; border-radius:50%; background:#f2f2f2; color:#000; display:grid; place-items:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
+  #send svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s var(--ease); }
+  #send svg.stop { fill:currentColor; stroke:none; }
+  #send:disabled { opacity:.3; }
+
+  /* overlays */
+  #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .3s ease; z-index:20; }
+  #app.side-open #scrim, #app.drawer-open #scrim { opacity:1; pointer-events:auto; }
+  #side, #drawer { position:absolute; top:0; bottom:0; width:min(320px, 84%); z-index:30; display:flex; flex-direction:column; transition:transform .38s var(--ease); will-change:transform; }
+  #side { left:0; background:#000; border-right:1px solid var(--line); transform:translateX(-102%); padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px)); }
+  #drawer { right:0; background:var(--panel); border-left:1px solid var(--line); transform:translateX(102%); padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px)); }
+  #app.side-open #side { transform:none; }
+  #app.drawer-open #drawer { transform:none; }
+  .shead { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 10px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
+  .logo { width:30px; height:30px; flex:none; border-radius:9px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-weight:700; font-size:16px; }
+  .nav { display:flex; align-items:center; gap:12px; width:100%; padding:10px; border-radius:12px; font-size:16px; text-align:left; }
+  .nav:hover { background:var(--raised); }
+  .nav .icon { width:34px; height:34px; background:none; border:0; }
+  .nav .icon svg { width:18px; height:18px; }
+  .label { font-size:13px; color:var(--mute); padding:18px 10px 6px; }
+  #chatlist { flex:1; overflow-y:auto; overscroll-behavior:contain; }
+  .citem { display:flex; align-items:center; gap:2px; border-radius:10px; padding-right:4px; transition:background-color .2s ease; }
+  .citem:hover, .citem.cur { background:var(--raised); }
+  .citem .t { flex:1; min-width:0; text-align:left; padding:11px 10px; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .citem .ib { padding:8px 9px; font-size:13px; color:var(--mute); border-radius:8px; flex:none; }
+  .citem .ib:hover { color:var(--ink); background:var(--field); }
+  .citem .x { width:40px; height:40px; flex:none; display:grid; place-items:center; border-radius:10px; font-size:26px; line-height:1; color:var(--mute); }
+  .citem .x:hover { color:#f87171; background:var(--field); }
+  .nochat { padding:8px 10px; color:var(--mute); font-size:14px; }
+  .sidefoot { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 6px 0; border-top:1px solid var(--line); font-size:13px; color:var(--mute); }
+  .pc { background:var(--raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:10px; transition:border-color .25s ease, box-shadow .25s ease; }
+  .pc.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .pc .h { display:flex; align-items:center; gap:8px; font-weight:700; }
+  .pc .sub { color:var(--mute); font-size:13px; margin-top:2px; }
+  .pc .st { display:flex; align-items:center; gap:8px; font-size:13.5px; margin-top:6px; }
+  .pc .acts { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .pc .tres { margin-top:8px; font-size:13px; padding:8px 10px; border-radius:10px; background:var(--panel); word-break:break-word; animation:fadeIn .3s var(--ease) both; }
+  .pc a { color:#8ab4ff; font-size:13.5px; }
+  .dhead { display:flex; align-items:center; justify-content:space-between; padding:4px 0 12px; }
+  .dhead h2 { margin:0; font-size:18px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
+  .seg { display:inline-flex; margin-bottom:10px; }
+
+  /* bottom sheets (the + menu is a drop-up card) */
+  .sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
+  .sheet .bg { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .3s ease; }
+  .sheet.show { pointer-events:auto; }
+  .sheet.show .bg { opacity:1; }
+  .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); opacity:0; transition:transform .38s var(--ease), opacity .3s ease; max-height:90vh; overflow-y:auto; will-change:transform; }
+  .sheet.show .sheetbody { transform:none; opacity:1; }
+  .sheetbody .btn.block { border-bottom:0; padding:14px; font-size:16px; border-radius:14px; margin-top:12px; }
+  .grip { width:40px; height:5px; border-radius:3px; background:#3a3a3a; margin:6px auto 12px; }
+  .dropcard { margin:0 0 8px; padding:8px; background:var(--raised); border:1px solid var(--line); border-radius:22px; box-shadow:0 18px 40px rgba(0,0,0,.5); }
+  .dropcard.drop { margin:0 auto; max-width:520px; }
+  .opt { display:flex; align-items:center; gap:14px; width:100%; padding:12px; border-radius:16px; text-align:left; border:0; background:transparent; }
+  .opt:hover { background:rgba(255,255,255,.05); }
+  .opt .ic { width:42px; height:42px; flex:none; border-radius:13px; background:#262626; display:grid; place-items:center; color:var(--ink); }
+  .opt .ic svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .opt .tx { flex:1; min-width:0; }
+  .opt .tx b { display:block; font-size:16px; font-weight:600; color:var(--ink); }
+  .opt .tx small { display:block; font-size:13px; color:var(--mute); margin-top:1px; }
+  .opt .chev { color:#555; font-size:20px; flex:none; }
+  .cancelbtn { width:100%; margin:0 auto; padding:15px; border-radius:18px; background:var(--raised); border:1px solid var(--line); font-size:16px; font-weight:600; color:var(--ink); text-align:center; }
+  .usebody { max-height:60vh; overflow-y:auto; padding:4px 2px; }
+  .urow { padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .urow b { display:block; font-size:15px; }
+  .urow span { color:var(--mute); display:block; }
+  .sheettitle { margin:6px 2px 4px; font-size:18px; font-weight:700; }
+  .pform label { display:block; font-size:14px; color:var(--mute); margin:12px 0; }
+  .pform input, .pform textarea { display:block; width:100%; margin-top:6px; padding:11px 12px; background:var(--field); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; resize:vertical; transition:border-color .2s ease, box-shadow .2s ease; }
+  .pform input:focus, .pform textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,124,255,.2); }
+  .guide { padding:4px 6px 8px; }
+  .guide p { color:var(--mute); font-size:14px; margin:0 0 12px; }
+  .guide .step { margin:10px 0; }
+  .guide .step .num { width:26px; height:26px; }
+  .guide .step b { font-size:15px; }
+  .guide .tip { margin-top:14px; padding:10px 12px; background:var(--raised); border-radius:12px; font-size:13px; color:var(--mute); }
+  .guide .tip b { color:var(--ink); }
+
+  /* respect "reduce motion" on the phone */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login" class="off">
+  <button id="homeBtn" class="corner-btn" type="button" aria-label="Add AI Relay to your Home Screen">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen
+  </button>
+
+  <header class="hero">
+    <div class="logo-tile">⇄</div>
+    <h1>AI Relay</h1>
+    <p>When one free AI runs out, the next picks up.</p>
+  </header>
+
+  <section class="panel" id="choose">
+    <h2>New here?</h2>
+    <p class="sub">Create a personal key. It saves your setup and works on any device.</p>
+    <button id="create" type="button" class="btn block">Create my key</button>
+  </section>
+
+  <div class="or" id="orDivider">or</div>
+
+  <section class="panel" id="returning">
+    <h2>Already have a key?</h2>
+    <p class="sub">Paste the personal key you saved.</p>
+    <div class="keyrow">
+      <input id="have" type="password" placeholder="fa-…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key">
+      <button id="enter" type="button" class="btn">Sign in</button>
+    </div>
+  </section>
+
+  <section class="panel off" id="made">
+    <h2>Save your key</h2>
+    <p class="sub">Keep this somewhere safe, like a password manager. It cannot be recovered if you lose it.</p>
+    <code class="key" id="newkey"></code>
+    <div class="keyrow">
+      <button id="copy2" class="btn ghost" type="button">Copy</button>
+      <button id="go" class="btn" type="button">I saved it</button>
+    </div>
+  </section>
+
+  <section class="steps">
+    <div class="step"><span class="num">1</span><span><b>Create your key</b> and save it.</span></div>
+    <div class="step"><span class="num">2</span><span><b>Add a free AI key</b> from the AI providers panel.</span></div>
+    <div class="step"><span class="num">3</span><span><b>Start chatting.</b> If one AI runs out, the next one answers.</span></div>
+  </section>
+
+  <p id="lerr" class="err" role="alert"></p>
+</div>
+
+<div id="app" class="off">
+  <header class="top">
+    <button id="menu" class="icon" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16"/></svg></button>
+    <button id="pill" class="pill" type="button" aria-label="AI providers"><span class="dot" id="pdot"></span><span id="ptxt">Loading</span></button>
+    <button id="newchat" class="icon" type="button" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+  </header>
+
+  <main id="log"><div class="col" id="col">
+    <div id="empty">
+      <h2 id="greet">What can I help with?</h2>
+      <div class="setup off" id="setup">
+        <strong>Get more messages in 2 minutes</strong>
+        <ol>
+          <li>Tap the provider button at the top and tap <b>Get a free key</b> on any card.</li>
+          <li>Sign up, copy the key, paste it in and tap <b>Save</b>.</li>
+          <li>Add more AIs for more messages.</li>
+        </ol>
+        <button type="button" class="btn small" id="openSetup">Set up my keys</button>
+      </div>
+      <div class="sugg" id="sugg">
+        <button type="button" data-s="Explain something in simple words">Explain something in simple words</button>
+        <button type="button" data-s="Help me write a polite email">Help me write a polite email</button>
+        <button type="button" data-s="Give me a quick dinner idea">Give me a quick dinner idea</button>
+        <button type="button" data-s="Quiz me on world capitals">Quiz me on world capitals</button>
+      </div>
+    </div>
+  </div></main>
+
+  <form id="f" class="composer">
+    <div id="editbar" class="editbar off"><span>Editing message</span><button type="button" id="editcancel" class="btn ghost small">Cancel</button></div>
+    <div class="box">
+      <textarea id="q" rows="1" placeholder="Ask AI Relay" aria-label="Message"></textarea>
+      <div class="bar">
+        <button id="plus" class="plusbtn" type="button" aria-label="More options">+</button>
+        <button id="mpill" class="mpill" type="button" aria-label="Choose AI"><span id="mtxt">Auto</span><span id="mprov"></span></button>
+        <span class="grow"></span>
+        <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      </div>
+    </div>
+  </form>
+
+  <div id="scrim"></div>
+
+  <aside id="side" aria-label="Menu">
+    <div class="shead"><div class="brand"><span class="logo">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <button class="nav" id="sideNew" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
+    <button class="nav" id="sideProfile" type="button"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
+    <button class="nav" id="sideShare" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
+    <button class="nav" id="sideHome" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
+    <div class="label">Your chats</div>
+    <div id="chatlist"></div>
+    <div class="sidefoot"><span id="acctline"></span><button id="sideOut" class="btn ghost small" type="button">Sign out</button></div>
+  </aside>
+
+  <aside id="drawer" aria-label="AI providers">
+    <div class="dhead"><h2>AI providers</h2><button id="close" class="btn ghost small" type="button">Done</button></div>
+    <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
+    <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
+    <div id="cards" style="overflow-y:auto;flex:1"></div>
+  </aside>
+
+  <div id="attach" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="dropcard drop">
+        <button type="button" class="opt" data-att="usage"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="tx"><b>Usage</b><small>Your limits and messages today</small></span><span class="chev">›</span></button>
+        <button type="button" class="opt" data-att="prov"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span><span class="tx"><b>AI providers</b><small>Add keys and choose which AI answers</small></span><span class="chev">›</span></button>
+        <button type="button" class="opt" data-att="share"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev">›</span></button>
+      </div>
+      <button type="button" class="cancelbtn" data-att="cancel">Cancel</button>
+    </div>
+  </div>
+
+  <div id="usage" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Usage</div>
+      <div class="usebody" id="usebody"></div>
+      <button type="button" class="cancelbtn" data-close style="margin-top:12px">Done</button>
+    </div>
+  </div>
+
+  <div id="psheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Your profile</div>
+      <div class="pform">
+        <label>Your name<input id="pName" maxlength="40" placeholder="e.g. Sam" autocomplete="off"></label>
+        <label>How should the AI talk to you?<textarea id="pStyle" maxlength="300" rows="3" placeholder="e.g. Keep answers short and friendly. I'm studying biology."></textarea></label>
+        <p class="hint">The AI uses this in every reply. Only you can see it.</p>
+      </div>
+      <button id="pSave" class="btn block" type="button">Save</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Cancel</button>
+    </div>
+  </div>
+
+  <div id="hsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Add to Home Screen</div>
+      <div class="guide">
+        <p>Open AI Relay in Safari and it can sit on your Home Screen like an app.</p>
+        <div class="step"><span class="num">1</span><span><b>Open in Safari.</b> This only works in Safari, not Chrome.</span></div>
+        <div class="step"><span class="num">2</span><span><b>Tap Share.</b> It's the square with an arrow at the bottom of the screen.</span></div>
+        <div class="step"><span class="num">3</span><span><b>Tap Add to Home Screen,</b> then tap <b>Add</b> in the top right.</span></div>
+        <div class="tip"><b>Tip:</b> Open AI Relay from the new icon. It runs full screen with no Safari bar.</div>
+      </div>
+      <button type="button" class="cancelbtn" data-close style="margin-top:12px">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// If anything fails, show the error on the sign-in screen instead of a black page.
+window.addEventListener("error", e => {
+  const el = document.getElementById("lerr");
+  const login = document.getElementById("login");
+  const app = document.getElementById("app");
+  if (login) login.classList.remove("off");
+  if (app) app.classList.add("off");
+  if (el) el.textContent = "Error: " + e.message + (e.lineno ? " (line " + e.lineno + ")" : "");
+});
+
+const $ = id => document.getElementById(id);
+const log = $("log"), col = $("col"), q = $("q"), send = $("send"), app = $("app");
+const nf = n => n.toLocaleString();
+const getKey = () => localStorage.getItem("freeai-key");
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const SEND_ICON = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+const STOP_ICON = '<svg class="stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+let history = [], chatId = newId(), st = null, busy = false, editing = null, openedAt = 0;
+let abortCtl = null, profile = { name: "", style: "" };
+const testResult = {}; // provider name -> result text from the Test button
+
+// Restarts a CSS animation class on an element.
+function play(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
+  return r.json();
+}
+const show = on => {
+  $("login").classList.toggle("off", on);
+  app.classList.toggle("off", !on);
+  play(on ? app : $("login"), "enter");
 };
+function panel(cls) { app.classList.remove("side-open", "drawer-open"); if (cls) app.classList.add(cls); }
+const closeAll = () => panel(null);
+function closeSheets() { document.querySelectorAll(".sheet.show").forEach(s => s.classList.remove("show")); }
+function openSheetEl(id) { closeAll(); closeSheets(); openedAt = Date.now(); $(id).classList.add("show"); }
+const recentlyOpened = () => Date.now() - openedAt < 400; // ignore the tap that opened a sheet
+document.addEventListener("click", e => { if (e.target.dataset && e.target.dataset.close !== undefined && !recentlyOpened()) closeSheets(); });
 
-// Keys come from Render's environment, e.g. GROQ_API_KEY, MISTRAL_API_KEY, CLOUDFLARE_API_KEY
-const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
-const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
-
-// Shared daily counters, per provider (reset at midnight UTC)
-let shared = { day: "", n: {} };
-const today = () => new Date().toISOString().slice(0, 10);
-function resetIfNewDay() { if (shared.day !== today()) shared = { day: today(), n: {} }; }
-function sharedLeft(name) {
-  resetIfNewDay();
-  return dailyCap(name) - (shared.n[name] || 0);
+function signOut() {
+  localStorage.removeItem("freeai-key");
+  st = null; history = []; chatId = newId(); profile = { name: "", style: "" };
+  closeAll(); closeSheets(); redraw(false); updateGreeting(); show(false);
 }
-// True if at least one shared AI still has messages left today
-const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
-
-// --- app icon and manifest, so the app can sit on the Home Screen like a real app ---
-const manifest = {
-  name: "AI Relay",
-  short_name: "AI Relay",
-  start_url: "/",
-  display: "standalone",
-  background_color: "#000000",
-  theme_color: "#000000",
-  icons: [
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-  ],
-};
-const crcTable = (() => {
-  const t = [];
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-function pngChunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const td = Buffer.concat([Buffer.from(type), data]);
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
-  return Buffer.concat([len, td, crc]);
-}
-// Draws a blue tile with two white arrows (one pointing right, one pointing left).
-function makeIcon(size) {
-  const stride = size * 3 + 1;
-  const raw = Buffer.alloc(stride * size);
-  const ly1 = size * 0.38, ly2 = size * 0.62, th = size * 0.07;
-  const x0 = size * 0.24, x1 = size * 0.76, hw = size * 0.12;
-  for (let y = 0; y < size; y++) {
-    raw[y * stride] = 0;
-    for (let x = 0; x < size; x++) {
-      const t = (x + y) / (2 * size);
-      let r = 37 + (56 - 37) * t, g = 99 + (189 - 99) * t, b = 235 + (248 - 235) * t;
-      let white = false;
-      if (x >= x0 && x <= x1 && Math.abs(y - ly1) <= th / 2) white = true;
-      if (x >= x1 - hw && x <= x1 && Math.abs(y - ly1) <= (x1 - x)) white = true;
-      if (x >= x0 && x <= x1 && Math.abs(y - ly2) <= th / 2) white = true;
-      if (x >= x0 && x <= x0 + hw && Math.abs(y - ly2) <= (x - x0)) white = true;
-      const i = y * stride + 1 + x * 3;
-      raw[i] = white ? 255 : r;
-      raw[i + 1] = white ? 255 : g;
-      raw[i + 2] = white ? 255 : b;
-    }
-  }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", ihdr),
-    pngChunk("IDAT", zlib.deflateSync(raw)),
-    pngChunk("IEND", Buffer.alloc(0)),
-  ]);
-}
-const iconCache = {};
-const iconFor = (size) => (iconCache[size] ||= makeIcon(size));
-
-// --- text helpers ---
-const textOf = (c) => Array.isArray(c) ? ((c.find((p) => p && p.type === "text") || {}).text || "") : String(c ?? "");
-
-// --- storage: Upstash Redis when configured, otherwise one encrypted local file per access key ---
-const sha = (s) => crypto.createHash("sha256").update(s).digest();
-const idOf = (t) => sha("id:" + t).toString("hex");
-const fileOf = (t) => path.join(DIR, idOf(t) + ".bin");
-
-// Talks to Upstash over its REST API. Each command is a JSON array, e.g. ["GET", "key"].
-async function redis(cmd) {
-  const r = await fetch(UP_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${UP_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(cmd),
-    signal: AbortSignal.timeout(10000),
-  });
-  const j = await r.json();
-  if (j.error) throw new Error("storage: " + j.error);
-  return j.result;
-}
-
-async function readBlob(t) {
-  if (USE_REDIS) {
-    const v = await redis(["GET", "relay:" + idOf(t)]);
-    return v ? Buffer.from(v, "base64") : null;
-  }
-  try { return fs.readFileSync(fileOf(t)); } catch { return null; }
-}
-async function writeBlob(t, buf) {
-  if (USE_REDIS) return redis(["SET", "relay:" + idOf(t), buf.toString("base64")]);
-  fs.writeFileSync(fileOf(t), buf);
-}
-
-// Counts how many personal keys a device has created today. The counter expires at midnight UTC.
-const memCounts = {};
-async function bumpDeviceCountToday(deviceId) {
-  const id = sha("device:" + today() + ":" + deviceId).toString("hex");
-  if (USE_REDIS) {
-    const key = "devcount:" + id;
-    const count = Number(await redis(["INCR", key]));
-    if (count === 1) await redis(["EXPIRE", key, String(secondsUntilMidnightUTC())]);
-    return count;
-  }
-  memCounts[id] = (memCounts[id] || 0) + 1;
-  return memCounts[id];
-}
-function secondsUntilMidnightUTC() {
-  const now = new Date();
-  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
-  return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
-}
-// Friendly reset time, e.g. "in about 7 hours".
-function resetMessage() {
-  const secs = secondsUntilMidnightUTC();
-  const hours = Math.floor(secs / 3600), mins = Math.ceil((secs % 3600) / 60);
-  const when = hours > 0 ? `${hours} hour${hours === 1 ? "" : "s"}${mins ? " " + mins + " min" : ""}` : `${mins} min`;
-  return `You've reached the limit of ${MAX_KEYS_PER_DEVICE_PER_DAY} personal keys on this device today. You can create more tomorrow at 00:00 UTC, in about ${when}.`;
-}
-
-const newUser = () => ({ keys: {}, usage: {}, until: {}, reason: {}, selected: "auto", current: null, lim: {}, chats: {}, profile: { name: "", style: "" } });
-
-async function loadUser(t) {
+async function refresh() {
+  if (!getKey()) return;
   try {
-    const b = await readBlob(t);
-    if (!b) return null;
-    const d = crypto.createDecipheriv("aes-256-gcm", sha("enc:" + t), b.subarray(0, 12));
-    d.setAuthTag(b.subarray(12, 28));
-    return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString());
-  } catch { return null; }
+    st = await api("/api/status");
+    if (st.profile) profile = st.profile;
+    updateGreeting();
+    render();
+  } catch {}
 }
-async function saveUser(t, u) {
-  const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv("aes-256-gcm", sha("enc:" + t), iv);
-  const enc = Buffer.concat([c.update(JSON.stringify(u)), c.final()]);
-  await writeBlob(t, Buffer.concat([iv, c.getAuthTag(), enc]));
+function updateGreeting() {
+  const g = $("greet");
+  const text = profile.name ? `Hi ${profile.name}, what can I help with?` : "What can I help with?";
+  if (g.textContent !== text) { g.textContent = text; play(g, "fade-in"); }
 }
 
-// --- per-AI limits for one person: each AI has its own hourly and daily count ---
-function limitOf(u, name) {
-  u.lim ||= {};
-  const L = (u.lim[name] ||= { hs: 0, hn: 0, day: "", dn: 0 });
-  if (Date.now() - L.hs > 3600000) { L.hs = Date.now(); L.hn = 0; }
-  if (L.day !== today()) { L.day = today(); L.dn = 0; }
-  return L;
+// --- Home Screen guide: from the sign-in corner button and the menu ---
+$("homeBtn").onclick = () => openSheetEl("hsheet");
+$("sideHome").onclick = () => openSheetEl("hsheet");
+
+// --- formatter: headings, bold, italics, lists, tables, code, links, paragraphs (escapes everything first, so it is safe) ---
+const TICK = String.fromCharCode(96);
+const FENCE = new RegExp(TICK + TICK + TICK + "(?:\\w+)?\\n?([\\s\\S]*?)" + TICK + TICK + TICK);
+const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
+// Matches [label](https://...) or a bare https:// address.
+const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"()\[\]]+)/g;
+function linkRepl(m, label, murl, burl) {
+  if (label) return `<a href="${murl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  // Keep trailing punctuation and the escaped "&gt;" / "&quot;" out of the link.
+  let url = burl, tail = "";
+  const t = url.match(/(?:&gt;|&quot;|[.,;:!?'])+$/);
+  if (t) { tail = t[0]; url = url.slice(0, -tail.length); }
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+}
+function inline(t) {
+  return t
+    .replace(INLINE, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>")
+    .replace(LINK_RE, linkRepl);
+}
+// Turns a block of "| a | b |" lines into a table. Cells wrap; nothing scrolls sideways.
+function tableHtml(rows) {
+  const cells = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
+  const isSep = r => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r);
+  let head = null, body = rows;
+  if (rows.length > 1 && isSep(rows[1])) { head = cells(rows[0]); body = rows.slice(2); }
+  let h = '<div class="tbl"><table>';
+  if (head) h += "<thead><tr>" + head.map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead>";
+  h += "<tbody>" + body.filter(r => !isSep(r)).map(r => "<tr>" + cells(r).map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  return h + "</table></div>";
+}
+function textBlock(s) {
+  const out = [];
+  let para = [], list = null, tbl = [];
+  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`<${list.t}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.t}>`); list = null; } };
+  const flushTable = () => { if (tbl.length) { out.push(tableHtml(tbl)); tbl = []; } };
+  for (const raw of esc(s).split("\n")) {
+    const line = raw.trimEnd();
+    let m;
+    if (/^\s*\|.*\|\s*$/.test(line)) { flushPara(); flushList(); tbl.push(line); continue; }
+    flushTable();
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushPara(); flushList(); out.push("<hr>"); continue; }
+    if ((m = line.match(/^(#{1,3})\s+(.+)$/))) { flushPara(); flushList(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    if ((m = line.match(/^\s*[-*•]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = line.match(/^\s*\d+[.)]\s+(.+)$/))) { flushPara(); if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(m[1]); continue; }
+    flushList();
+    para.push(line.trim());
+  }
+  flushPara(); flushList(); flushTable();
+  return out.join("");
+}
+const fmt = t => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : textBlock(s)).join("");
+
+// --- providers panel ---
+function render() {
+  if (!st) return;
+  const live = st.providers.filter(p => p.hasKey), name = st.current || st.nextUp;
+  const cur = live.find(p => p.name === name);
+  $("ptxt").textContent = !live.length ? "Add a key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
+  $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
+  // The model pill above the send button
+  $("mtxt").textContent = st.selected === "auto" ? "Auto" : (cur ? cur.name : (st.selected || "Auto"));
+  $("mprov").textContent = !live.length ? "" : (cur ? "· " + cur.name : (st.nextUp ? "· " + st.nextUp : ""));
+  $("setup").classList.toggle("off", st.providers.some(p => p.own));
+  $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
+  $("acctline").textContent = "Key " + (getKey() || "").slice(0, 7) + "…";
+  $("cards").innerHTML = st.providers.map(p => {
+    const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div>`;
+    if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
+      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a free key"}</a></div>${keyBox}</div>`;
+    const on = p.name === st.selected, rest = p.coolingDown;
+    const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
+    const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
+    const shared = !p.own
+      ? (p.paid ? `<div class="sub" style="margin-top:6px">Paid AI · add your own key to use it. <a href="${p.keyUrl}" target="_blank" rel="noopener">Get one</a></div>${keyBox}`
+               : `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}`)
+      : "";
+    const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
+    return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
+      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${shared}${tr}
+      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use only this one"}</button><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
+  }).join("");
 }
 
-// --- profile: a name and how the AI should talk to this person ---
-function profileSystem(u) {
-  const p = u.profile || {};
-  const parts = [];
-  if (p.name) parts.push(`The person you're helping is called ${p.name}.`);
-  if (p.style) parts.push(`How to respond: ${p.style}`);
-  return parts.join(" ");
-}
-const withSystem = (sys, msgs) => (sys ? [{ role: "system", content: sys }, ...msgs] : msgs);
+$("drawer").addEventListener("click", async e => {
+  const t = e.target.dataset;
+  try {
+    if (t.pin) { st = await api("/api/select", { provider: t.pin }); render(); }
+    else if (t.test) {
+      testResult[t.test] = "Testing…"; render();
+      try {
+        const r = await api("/api/test", { provider: t.test });
+        testResult[t.test] = r.ok ? `Works. It replied "${r.reply}" using ${r.model}.` : "Not working: " + r.error;
+      } catch (err) { testResult[t.test] = "Not working: " + err.message; }
+      render();
+    }
+    else if (t.del) { st = await api("/api/key", { provider: t.del, key: "" }); delete testResult[t.del]; render(); }
+    else if (t.save) { const v = document.querySelector(`[data-in="${t.save}"]`).value.trim(); if (v) { st = await api("/api/key", { provider: t.save, key: v }); delete testResult[t.save]; render(); } }
+  } catch {}
+});
 
-// --- saved chats: pinned chats stay on top, renamed titles are kept ---
-function putChat(u, id, messages) {
-  if (!id || !Array.isArray(messages)) return;
-  const key = String(id).slice(0, 40);
-  u.chats ||= {};
-  const prev = u.chats[key];
-  if (!messages.length) { delete u.chats[key]; return; }
-  const clean = messages.slice(-MAX_MESSAGES).map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: textOf(m.content).slice(0, 20000),
-    meta: String(m.meta || "").slice(0, 200),
-  }));
-  const first = clean.find((m) => m.role === "user");
-  const autoTitle = (first ? first.content : "New chat").replace(/\s+/g, " ").trim().slice(0, 48) || "New chat";
-  u.chats[key] = {
-    id: key,
-    title: prev && prev.custom ? prev.title : autoTitle,
-    custom: !!(prev && prev.custom),
-    pinned: !!(prev && prev.pinned),
-    updated: Date.now(),
-    messages: clean,
+// --- usage: each AI on its own ---
+function renderUsage() {
+  if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
+  const live = st.providers.filter(p => p.hasKey);
+  const rows = live.length ? live.map(p => p.own
+    ? `<div class="urow"><b>${p.name}</b><span>Your own key · no limit</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+    : `<div class="urow"><b>${p.name}</b><span>${p.usedThisHour} of ${st.limits.perHour} this hour · ${p.usedToday} of ${st.limits.perDay} today</span><span>${nf(p.requests)} answered · ${p.errors} errors</span></div>`
+  ).join("") : `<p class="hint">No AIs added yet. Add a key in AI providers.</p>`;
+  $("usebody").innerHTML = `<p class="hint" style="margin:6px 0 10px">Each AI has its own limit on the shared keys. Switching to another AI gives you that AI's full allowance.</p>${rows}`;
+}
+async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
+
+// --- profile ---
+function openProfile() {
+  $("pName").value = profile.name || "";
+  $("pStyle").value = profile.style || "";
+  openSheetEl("psheet");
+}
+$("sideProfile").onclick = openProfile;
+$("pSave").onclick = async () => {
+  try {
+    const r = await api("/api/profile", { name: $("pName").value, style: $("pStyle").value });
+    profile = r.profile || profile;
+    updateGreeting();
+    closeSheets();
+  } catch (e) { alert(e.message); }
+};
+
+// --- sharing a chat (text only) ---
+function transcriptOf(messages) {
+  return messages.map(m => (m.role === "user" ? "You: " : "AI Relay: ") + String(m.content)).join("\n\n");
+}
+async function shareText(title, text) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(text); alert("Chat copied. Paste it anywhere."); }
+  catch { alert("Could not copy this chat."); }
+}
+function shareChat() {
+  if (!history.length) { alert("Start a chat first, then you can share it."); return; }
+  shareText("AI Relay chat", transcriptOf(history));
+}
+// Shares a saved chat from the list without opening it.
+async function shareSaved(id) {
+  try {
+    const c = await api("/api/chats/open", { id });
+    if (!c || c.error) { alert("Could not find this chat."); return; }
+    shareText(c.title || "AI Relay chat", transcriptOf(c.messages));
+  } catch { alert("Could not share this chat."); }
+}
+$("sideShare").onclick = () => { closeAll(); shareChat(); };
+
+// --- navigation ---
+$("menu").onclick = () => panel("side-open");
+$("sideclose").onclick = closeAll;
+$("pill").onclick = () => panel("drawer-open");
+$("mpill").onclick = () => panel("drawer-open");
+$("openSetup").onclick = () => panel("drawer-open");
+$("close").onclick = closeAll;
+$("scrim").onclick = closeAll;
+$("sideNew").onclick = newChat;
+$("newchat").onclick = newChat;
+$("sideOut").onclick = signOut;
+$("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAll(); closeSheets(); } });
+
+// --- + menu (drop-up) ---
+$("plus").onclick = () => openSheetEl("attach");
+$("attach").addEventListener("click", e => {
+  const b = e.target.closest("[data-att]"); if (!b) return;
+  const a = b.dataset.att;
+  if (!a || recentlyOpened()) return;
+  if (a === "usage") return openUsage();
+  if (a === "prov") { closeSheets(); return panel("drawer-open"); }
+  if (a === "share") { closeSheets(); return shareChat(); }
+  closeSheets();
+});
+
+// --- saved chats: open, share, pin, delete ---
+async function loadChats() {
+  if (!getKey()) return;
+  try {
+    const list = await api("/api/chats");
+    $("chatlist").innerHTML = list.length
+      ? list.map(c => `<div class="citem ${c.id === chatId ? "cur" : ""}"><button class="t" type="button" data-open="${esc(c.id)}">${c.pinned ? "★ " : ""}${esc(c.title)}</button><button class="ib" type="button" data-share="${esc(c.id)}">Share</button><button class="ib" type="button" data-pin="${c.pinned ? "0" : "1"}" data-id="${esc(c.id)}">${c.pinned ? "Unpin" : "Pin"}</button><button class="x" type="button" data-del="${esc(c.id)}" aria-label="Delete chat">×</button></div>`).join("")
+      : `<div class="nochat">Your chats will appear here.</div>`;
+  } catch {}
+}
+$("chatlist").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const d = b.dataset;
+  try {
+    if (d.open) return openChat(d.open);
+    if (d.share) return shareSaved(d.share);
+    if (d.del) {
+      if (!confirm("Delete this chat?")) return;
+      await api("/api/chats/delete", { id: d.del });
+      if (d.del === chatId) { history = []; chatId = newId(); redraw(false); }
+    }
+    else if (d.pin) { await api("/api/chats/pin", { id: d.id, pinned: d.pin === "1" }); }
+  } catch {}
+  loadChats();
+});
+async function openChat(id) {
+  try {
+    const c = await api("/api/chats/open", { id });
+    if (!c || c.error) return;
+    chatId = id; history = c.messages.slice(); editing = null; cancelEdit(false);
+    redraw(true); closeAll(); loadChats();
+  } catch {}
+}
+function newChat() { history = []; chatId = newId(); editing = null; cancelEdit(false); redraw(true); closeAll(); loadChats(); }
+async function syncChat() {
+  try { await api("/api/chats/sync", { id: chatId, messages: history.map(({ role, content, meta }) => ({ role, content, meta })) }); loadChats(); } catch {}
+}
+
+// --- messages ---
+// Your messages get Edit and Delete under them. Replies get Copy under them.
+function add(cls, text, meta, idx, quiet) {
+  $("empty").classList.add("off");
+  const d = document.createElement("div"); d.className = "msg " + cls;
+  if (idx !== undefined) d.dataset.i = idx;
+  if (cls === "bot") {
+    d.innerHTML = `<div class="body">${fmt(text)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
+  } else {
+    d.innerHTML = `<div class="mtxt">${esc(text)}</div><div class="acts2"><button type="button" data-act="edit">Edit</button><button type="button" data-act="del">Delete</button></div>`;
+  }
+  col.appendChild(d);
+  if (!quiet) { d.classList.add("pop"); log.scrollTo({ top: log.scrollHeight, behavior: "smooth" }); }
+  return d;
+}
+const toBottom = () => { log.scrollTop = log.scrollHeight; };
+// Puts an element near the top of the screen. Instant, so it never fights the typing.
+function pinTo(el) {
+  const top = el.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - 12;
+  log.scrollTop = Math.max(0, top);
+}
+function redraw(animate) {
+  [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); });
+  history.forEach((m, i) => add(m.role === "user" ? "me" : "bot", String(m.content ?? ""), m.meta, i, true));
+  $("empty").classList.toggle("off", history.length > 0);
+  if (animate) play(col, "fade-in");
+  toBottom();
+}
+function cancelEdit(keepText) {
+  editing = null; $("editbar").classList.add("off");
+  if (!keepText) { q.value = ""; q.dispatchEvent(new Event("input")); }
+}
+$("editcancel").onclick = () => cancelEdit(false);
+$("sugg").onclick = e => { const s = e.target.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
+
+// Copy / Edit / Delete buttons under messages.
+col.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const msg = b.closest(".msg"); if (!msg) return;
+  const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
+  const act = b.dataset.act;
+  if (act === "copy") {
+    // Copy your question, then the answer, so the copy makes sense on its own.
+    const q0 = history[i - 1] && history[i - 1].role === "user" ? String(history[i - 1].content) : "";
+    const text = q0 ? "You: " + q0 + "\n\nAI Relay: " + String(m.content) : String(m.content);
+    try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1200); }
+    catch { alert("Could not copy. Long-press the text to select it instead."); }
+  }
+  if (act === "edit") { editing = i; q.value = String(m.content); q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus(); }
+  if (act === "del") {
+    const n = history[i + 1]?.role === "assistant" ? 2 : 1;
+    history.splice(i, n); cancelEdit(false); redraw(false); syncChat();
+  }
+});
+
+q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
+q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) $("f").requestSubmit(); } });
+
+// The send button becomes a stop button while a reply is being written.
+function setBusy(on) {
+  busy = on;
+  send.innerHTML = on ? STOP_ICON : SEND_ICON;
+  send.setAttribute("aria-label", on ? "Stop" : "Send");
+  play(send, "pop");
+}
+
+$("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (busy) { if (abortCtl) abortCtl.abort(); return; }
+  const text = q.value.trim();
+  if (!text) return;
+  if (editing !== null) { history.length = editing; editing = null; $("editbar").classList.add("off"); redraw(false); }
+  q.value = ""; q.style.height = "auto";
+  history.push({ role: "user", content: text });
+  const mine = add("me", text, "", history.length - 1, true);
+  mine.classList.add("pop");
+  const bubble = add("bot", "Thinking…", "", history.length, true);
+  bubble.classList.add("thinking", "pop");
+  bubble.querySelector(".acts2").classList.add("off"); // hidden until the reply is finished
+  pinTo(mine); // your question sits at the top, and the reply comes in below it
+
+  setBusy(true);
+  abortCtl = new AbortController();
+  let full = "", shown = "", meta = "", errorInfo = null;
+  const body = () => bubble.querySelector(".body");
+  const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
+
+  // Text arrives in bursts. Show it at a steady pace. The view does not follow it down, so you read from the top.
+  const timer = setInterval(() => {
+    const pending = full.length - shown.length;
+    if (pending <= 0) return;
+    const step = Math.min(pending, 2 + Math.floor(pending / 50));
+    shown = full.slice(0, shown.length + step);
+    body().innerHTML = fmt(shown);
+  }, 30);
+  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full); };
+
+  const onEvent = ev => {
+    if (ev.type === "meta") { meta = ev.provider + " · " + ev.model; showMeta(); }
+    else if (ev.type === "delta") { if (!full) bubble.classList.remove("thinking"); full += ev.text; }
+    else if (ev.type === "done") { if (ev.fellBack) meta += " · your pinned choice was unavailable"; showMeta(); }
+    else if (ev.type === "error") { errorInfo = ev; }
   };
-  const sorted = Object.values(u.chats).sort((a, b) => b.updated - a.updated);
-  for (const old of sorted.slice(MAX_CHATS)) delete u.chats[old.id];
-}
-const listChats = (u) => Object.values(u.chats || {})
-  .sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated))
-  .map(({ id, title, updated, pinned }) => ({ id, title, updated, pinned: !!pinned }));
 
-// --- model names: remember the one that worked for each AI ---
-const models = {}; // AI name -> model name that last worked
-const modelFor = (name) => models[name] || PROVIDERS[name].model;
-
-function errText(text) {
   try {
-    const j = JSON.parse(text);
-    const m = j.error?.message || j.message || (Array.isArray(j) ? j[0]?.error?.message : "") || "";
-    return String(m).replace(/\s+/g, " ").slice(0, 120);
-  } catch { return String(text).replace(/\s+/g, " ").slice(0, 120); }
-}
-
-const headersFor = (key) => ({ "Content-Type": "application/json", Authorization: `Bearer ${key}` });
-
-// Is this error about the model name (so trying another name may help)?
-const isModelError = (status, text) =>
-  status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug|isn't available|not available|decommissioned/i.test(text));
-
-// Names that are never chat models.
-const NOT_CHAT = /embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|ocr|\br1\b|distill|reward|prompt|code|vl\b|-vl|asr|stt|clef|clairic|moondream|flux|stable|bge|whisper|resnet|aura|melotts|sqlcoder|uform/i;
-
-// Ask the provider which models this key can use. Returns the list of names (may be empty), or null if unreadable.
-async function listModels(name, key) {
-  const p = PROVIDERS[name];
-  try {
-    const res = await fetch(p.listUrl, { headers: headersFor(key), signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return null;
-    const j = await res.json();
-    const raw = j.data || j.models || j.result || [];
-    const out = [];
-    for (const m of raw) {
-      const id = String(m.id || m.name || m.model || "").replace(/^models\//, "");
-      if (!id) continue;
-      const task = typeof m.task === "string" ? m.task : m.task?.name;
-      if (task && !/text generation/i.test(task)) continue;
-      if (NOT_CHAT.test(id)) continue;
-      out.push(id);
-    }
-    return out;
-  } catch { return null; }
-}
-
-// Choose the next model name to try.
-// 1. Known names that the provider lists for this key.
-// 2. For AIs with lookup on, any text model the provider lists for this key.
-// 3. The next known name, even if it isn't listed.
-async function findNextModel(name, key, skip) {
-  const p = PROVIDERS[name];
-  const available = await listModels(name, key);
-  if (available) {
-    const set = new Set(available);
-    const listedKnown = (p.known || []).find((id) => set.has(id) && !skip.has(id));
-    if (listedKnown) return listedKnown;
-    if (p.lookup) {
-      const listedAny = available.find((id) => !skip.has(id));
-      if (listedAny) return listedAny;
-    }
-  }
-  return (p.known || []).find((id) => !skip.has(id)) || null;
-}
-
-// --- failover logic, per user ---
-const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
-const resting = (u, n) => (u.until[n] || 0) > Date.now();
-function ordered(u) {
-  const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n));
-  return have.includes(u.selected) ? [u.selected, ...have.filter((n) => n !== u.selected)] : have;
-}
-// If the person pinned an AI, use ONLY that AI. Auto-switch uses them all in order.
-function planFor(u) {
-  const all = ordered(u);
-  return u.selected !== "auto" && all.includes(u.selected) ? [u.selected] : all;
-}
-function cooldownFor(res, text) {
-  const ra = parseInt(res.headers.get("retry-after"), 10);
-  if (!isNaN(ra)) return ra * 1000;
-  return /day|daily|quota|credit|billing|balance/i.test(text) ? 3600000 : 60000;
-}
-
-// Keep only the latest messages (starting with a user message) and shorten very long text.
-function trimContext(messages, n) {
-  let out = messages.slice(-n);
-  while (out.length && out[0].role !== "user") out = out.slice(1);
-  return out.map((m) => {
-    const t = textOf(m.content);
-    return { role: m.role, content: t.length > CONTEXT_CHARS ? t.slice(-CONTEXT_CHARS) : t };
-  });
-}
-
-// Turns a failed provider response into a clear result the failover logic understands.
-function classifyFailure(res, text, model) {
-  const detail = errText(text);
-  if (isModelError(res.status, text)) {
-    return { ok: false, modelError: true, reason: `${model} isn't available for this key${detail ? " (" + detail + ")" : ""}`, cooldown: 60000 };
-  }
-  if (res.status === 401) {
-    return { ok: false, reason: "key rejected. Copy the key again from the provider and paste it into this AI's card, then Save.", cooldown: 300000 };
-  }
-  const cooldown = [402, 403, 429].includes(res.status) || res.status >= 500 ? cooldownFor(res, text) : 30000;
-  return { ok: false, reason: `HTTP ${res.status}${detail ? ": " + detail : ""}`, cooldown };
-}
-
-// Call one AI with one model name (no streaming). Used by the Test button and /api/chat.
-async function callModel(name, key, model, messages, sys) {
-  const p = PROVIDERS[name];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const ctx = withSystem(sys, trimContext(messages, attempt === 0 ? CONTEXT_MESSAGES : 2));
-    try {
-      const res = await fetch(p.url, {
-        method: "POST",
-        headers: headersFor(key),
-        body: JSON.stringify({ model, messages: ctx, max_tokens: 1024 }),
-        signal: AbortSignal.timeout(45000),
-      });
-      const text = await res.text();
-      if (res.ok) {
-        const data = JSON.parse(text), reply = data.choices?.[0]?.message?.content;
-        if (reply) return { ok: true, reply, tokens: data.usage?.total_tokens || 0 };
-        return { ok: false, reason: "empty reply", cooldown: 30000 };
-      }
-      if (attempt === 0 && res.status === 429 && /token/i.test(text)) continue;
-      return classifyFailure(res, text, model);
-    } catch (e) {
-      return { ok: false, reason: e.message, cooldown: 30000 };
-    }
-  }
-  return { ok: false, reason: "request failed", cooldown: 30000 };
-}
-
-// Streams one AI's reply. Each piece of text is sent to the phone as it arrives.
-// Returns { ok, reply, tokens } when finished, or { ok:false, reason, cooldown, modelError, partial, aborted }.
-async function streamModel(name, key, model, messages, sys, ev, signal) {
-  const p = PROVIDERS[name];
-  const ctx = withSystem(sys, trimContext(messages, CONTEXT_MESSAGES));
-  let sent = false, full = "", tokens = 0;
-  try {
-    const res = await fetch(p.url, {
+    const r = await fetch("/api/chat-stream", {
       method: "POST",
-      headers: headersFor(key),
-      body: JSON.stringify({ model, messages: ctx, max_tokens: 1024, stream: true }),
-      signal,
+      headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" },
+      body: JSON.stringify({ chatId, messages: history.map(m => ({ role: m.role, content: m.content })) }),
+      signal: abortCtl.signal,
     });
-    if (!res.ok) {
-      const text = await res.text();
-      return classifyFailure(res, text, model);
-    }
-    const type = res.headers.get("content-type") || "";
-    if (type.includes("text/event-stream") && res.body) {
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      outer: for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, i).trim();
-          buf = buf.slice(i + 1);
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (data === "[DONE]") break outer;
-          let j;
-          try { j = JSON.parse(data); } catch { continue; }
-          const piece = j.choices?.[0]?.delta?.content;
-          if (piece) { full += piece; sent = true; ev({ type: "delta", text: piece }); }
-          if (j.usage?.total_tokens) tokens = j.usage.total_tokens;
-        }
+    if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Request failed"); }
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (line) onEvent(JSON.parse(line));
       }
-    } else {
-      // Provider ignored the stream request and sent one normal reply.
-      const j = JSON.parse(await res.text());
-      full = j.choices?.[0]?.message?.content || "";
-      if (full) { sent = true; ev({ type: "delta", text: full }); }
-      tokens = j.usage?.total_tokens || 0;
     }
-    if (!full) return { ok: false, reason: "empty reply", cooldown: 30000, partial: sent };
-    return { ok: true, reply: full, tokens };
-  } catch (e) {
-    if (signal.aborted) return { ok: false, aborted: true };
-    return { ok: false, reason: e.message, cooldown: 30000, partial: sent };
+  } catch (err) {
+    if (!(abortCtl && abortCtl.signal.aborted)) errorInfo = errorInfo || { error: err.message };
   }
+
+  flush(); // show everything that arrived, even if the stream ended early
+  const stopped = !!(abortCtl && abortCtl.signal.aborted);
+  abortCtl = null;
+  setBusy(false);
+
+  if (full) {
+    if (stopped) meta += " · stopped";
+    bubble.classList.remove("thinking");
+    showMeta();
+    bubble.querySelector(".acts2").classList.remove("off");
+    history.push({ role: "assistant", content: full, meta });
+    // Let the layout settle, then line your question up at the top again so the reply starts on screen.
+    requestAnimationFrame(() => setTimeout(() => pinTo(mine), 60));
+    if (errorInfo && !stopped) add("note", errorInfo.error);
+  } else {
+    bubble.remove();
+    if (!stopped) {
+      history.pop(); mine.remove();
+      q.value = text; q.dispatchEvent(new Event("input"));
+      add("note", (errorInfo ? errorInfo.error : "No reply.") + " Your message is back in the box.");
+    }
+  }
+  syncChat();
+  refresh();
+});
+
+// --- sign in ---
+const notServed = () => !/^https?:$/.test(location.protocol);
+const serverMsg = "AI Relay can't reach its server from here. Open it at your AI Relay web address, or run it locally and open http://localhost:3000.";
+function deviceId() {
+  let d = localStorage.getItem("device-id");
+  if (!d) {
+    d = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    localStorage.setItem("device-id", d);
+  }
+  return d;
 }
+$("create").onclick = async () => {
+  $("lerr").textContent = "";
+  if (notServed()) { $("lerr").textContent = serverMsg; return; }
+  try {
+    const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId() }) })).json();
+    if (!r.token) throw new Error(r.error || "Could not create a key");
+    localStorage.setItem("freeai-key", r.token);
+    $("newkey").textContent = r.token;
+    $("choose").classList.add("off"); $("returning").classList.add("off"); $("orDivider").classList.add("off");
+    play($("made"), "appear");
+    $("made").classList.remove("off");
+  } catch (e) { $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message; }
+};
+$("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
+$("go").onclick = async () => { show(true); await refresh(); loadChats(); };
+$("enter").onclick = async () => {
+  const k = $("have").value.trim();
+  $("lerr").textContent = "";
+  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Create my key to make one."; return; }
+  if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
+  if (notServed()) { $("lerr").textContent = serverMsg; return; }
+  localStorage.setItem("freeai-key", k);
+  try { st = await api("/api/status"); show(true); await refresh(); render(); loadChats(); }
+  catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
+};
 
-// Non-streaming ask, used by the Test button and /api/chat.
-async function ask(u, messages, only, test) {
-  const tried = [];
-  const sys = profileSystem(u);
-  let list = only ? [only] : planFor(u);
-  let limited = 0;
-  for (const name of list) {
-    if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
-    const usingShared = !u.keys[name];
-    if (usingShared && !test) {
-      if (dailyCap(name) <= 0) { tried.push(`${name}: shared use is off. Add your own key for this AI.`); continue; }
-      if (sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
-      const L = limitOf(u, name);
-      if (L.hn >= PER_USER_HOURLY) { limited++; tried.push(`${name}: your ${PER_USER_HOURLY} messages this hour are used`); continue; }
-      if (L.dn >= PER_USER_DAILY) { limited++; tried.push(`${name}: your ${PER_USER_DAILY} messages today are used`); continue; }
-    }
-    const s = usage(u, name);
-    const key = u.keys[name] || envKey(name);
-
-    // Try the saved or default model. If it isn't available, move to the next name.
-    const skip = new Set();
-    let answered = null, last = null;
-    let model = modelFor(name);
-    for (let step = 0; step < 8 && !answered; step++) {
-      if (!model) {
-        model = await findNextModel(name, key, skip);
-        if (!model) break;
-      }
-      skip.add(model);
-      last = await callModel(name, key, model, messages, sys);
-      if (last.ok) { answered = { reply: last.reply, tokens: last.tokens, model }; break; }
-      if (!last.modelError) break;
-      model = null;
-    }
-
-    if (answered) {
-      if (usingShared && !test) {
-        shared.n[name] = (shared.n[name] || 0) + 1;
-        const L = limitOf(u, name); L.hn++; L.dn++;
-      }
-      models[name] = answered.model;
-      s.ok++; s.tokens += answered.tokens; u.current = name; u.reason[name] = "";
-      return { reply: answered.reply, provider: name, model: answered.model, fellBack: u.selected !== "auto" && u.selected !== name, shared: usingShared };
-    }
-
-    const reason = last ? last.reason : "none of this AI's models worked for this key";
-    s.fail++; u.reason[name] = reason;
-    u.until[name] = Date.now() + (last ? last.cooldown : 60000);
-    tried.push(`${name}: ${reason}`);
-  }
-  let msg;
-  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
-  else if (u.selected !== "auto" && !only && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
-  else if (list.length) msg = "All providers are resting right now.";
-  else msg = "Add at least one key first (AI providers).";
-  const err = new Error(msg);
-  err.tried = tried; throw err;
-}
-
-// Streaming version of ask(). Writes events to the phone and returns the result.
-async function askStream(u, messages, res, signal) {
-  const ev = (o) => { if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(o) + "\n"); };
-  const tried = [];
-  const sys = profileSystem(u);
-  const list = planFor(u);
-  let limited = 0;
-  if (!list.length) { ev({ type: "error", error: "Add at least one key first (AI providers)." }); return { ok: false }; }
-
-  for (const name of list) {
-    if (signal.aborted) return { ok: false, aborted: true };
-    if (resting(u, name)) { tried.push(`${name}: resting`); continue; }
-    const usingShared = !u.keys[name];
-    if (usingShared) {
-      if (dailyCap(name) <= 0) { tried.push(`${name}: shared use is off. Add your own key for this AI.`); continue; }
-      if (sharedLeft(name) <= 0) { tried.push(`${name}: shared daily limit reached`); continue; }
-      const L = limitOf(u, name);
-      if (L.hn >= PER_USER_HOURLY) { limited++; tried.push(`${name}: your ${PER_USER_HOURLY} messages this hour are used`); continue; }
-      if (L.dn >= PER_USER_DAILY) { limited++; tried.push(`${name}: your ${PER_USER_DAILY} messages today are used`); continue; }
-    }
-    const s = usage(u, name);
-    const key = u.keys[name] || envKey(name);
-
-    const skip = new Set();
-    let got = null, last = null;
-    let model = modelFor(name);
-    for (let step = 0; step < 8 && !got; step++) {
-      if (!model) {
-        model = await findNextModel(name, key, skip);
-        if (!model) break;
-      }
-      skip.add(model);
-      ev({ type: "meta", provider: name, model });
-      last = await streamModel(name, key, model, messages, sys, ev, signal);
-      if (last.ok) { got = { reply: last.reply, tokens: last.tokens, model }; break; }
-      if (last.aborted) return { ok: false, aborted: true };
-      if (last.partial || !last.modelError) break;
-      model = null;
-    }
-
-    if (got) {
-      if (usingShared) {
-        shared.n[name] = (shared.n[name] || 0) + 1;
-        const L = limitOf(u, name); L.hn++; L.dn++;
-      }
-      models[name] = got.model;
-      s.ok++; s.tokens += got.tokens; u.current = name; u.reason[name] = "";
-      const fellBack = u.selected !== "auto" && u.selected !== name;
-      ev({ type: "done", provider: name, model: got.model, fellBack, shared: usingShared });
-      return { ok: true, reply: got.reply, tokens: got.tokens, provider: name, model: got.model, fellBack };
-    }
-
-    // Text already reached the phone: stop here, keep what was written, and say why it stopped.
-    if (last && last.partial) {
-      s.fail++; u.reason[name] = last.reason; u.until[name] = Date.now() + (last.cooldown || 60000);
-      ev({ type: "error", error: `${name} stopped partway: ${last.reason}`, partial: true });
-      return { ok: false };
-    }
-
-    const reason = last ? last.reason : "none of this AI's models worked for this key";
-    s.fail++; u.reason[name] = reason;
-    u.until[name] = Date.now() + (last ? last.cooldown : 60000);
-    tried.push(`${name}: ${reason}`);
-  }
-
-  let msg;
-  if (limited > 0 && limited === list.length) msg = `You've used your limit on this AI (${PER_USER_HOURLY} an hour, ${PER_USER_DAILY} a day). Each AI has its own limit, so pick a different AI in AI providers.`;
-  else if (u.selected !== "auto" && list.length === 1) msg = `${list[0]} didn't answer. Reason: ${tried[0] ? tried[0].replace(/^[^:]*:\s*/, "") : "unknown"}. Use Test on its card for details, or pick another AI.`;
-  else msg = "All providers are resting right now.";
-  ev({ type: "error", error: msg, tried });
-  return { ok: false };
-}
-
-function status(u) {
-  const next = planFor(u).find((n) => !resting(u, n));
-  return {
-    selected: u.selected, current: u.current, nextUp: next || null,
-    limits: { perHour: PER_USER_HOURLY, perDay: PER_USER_DAILY },
-    profile: u.profile || { name: "", style: "" },
-    providers: Object.entries(PROVIDERS).map(([name, p]) => {
-      const s = usage(u, name), own = !!u.keys[name];
-      const L = own ? null : limitOf(u, name);
-      return { name, model: modelFor(name) || "checking your key…", keyUrl: p.keyUrl, paid: !!p.paid, hasKey: !!(u.keys[name] || envKey(name)), own, coolingDown: resting(u, name),
-        resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
-        requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
-        usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
-        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
-    }),
-  };
-}
-
-const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
-
-async function route(req, res) {
-  // Home Screen icon and app settings
-  if (req.method === "GET" && req.url === "/manifest.json") {
-    res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" });
-    return res.end(JSON.stringify(manifest));
-  }
-  if (req.method === "GET" && (req.url === "/icon-192.png" || req.url === "/icon-512.png" || req.url === "/apple-touch-icon.png")) {
-    const size = req.url.includes("512") ? 512 : req.url.includes("192") ? 192 : 180;
-    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" });
-    return res.end(iconFor(size));
-  }
-
-  if (!req.url.startsWith("/api/")) {
-    return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
-      if (err) { res.writeHead(404); return res.end("Not found"); }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(data);
-    });
-  }
-  let raw = "";
-  for await (const c of req) { raw += c; if (raw.length > 6e6) return send(res, 413, { error: "too large" }); }
-  let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
-
-  if (req.url === "/api/signup" && req.method === "POST") {
-    // Limit per device. The app sends a random device ID it stores on the phone.
-    const device = String(body.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
-    if (!device) return send(res, 400, { error: "Could not identify this device. Reload the page and tap Create my key again." });
-    const count = await bumpDeviceCountToday(device);
-    if (count > MAX_KEYS_PER_DEVICE_PER_DAY) {
-      return send(res, 429, { error: resetMessage() });
-    }
-    const token = "fa-" + crypto.randomBytes(18).toString("base64url");
-    await saveUser(token, newUser());
-    return send(res, 200, { token });
-  }
-  const token = req.headers["x-access-key"] || "";
-  const u = token ? await loadUser(token) : null;
-  if (!u) return send(res, 401, { error: "Key not recognized" });
-
-  if (req.url === "/api/status") return send(res, 200, status(u));
-
-  if (req.url === "/api/profile") {
-    u.profile = {
-      name: String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 40),
-      style: String(body.style || "").trim().slice(0, 300),
-    };
-    await saveUser(token, u);
-    return send(res, 200, { profile: u.profile });
-  }
-
-  if (req.url === "/api/chats") return send(res, 200, listChats(u));
-  if (req.url === "/api/chats/open") {
-    const c = u.chats?.[String(body.id || "").slice(0, 40)];
-    return c ? send(res, 200, c) : send(res, 404, { error: "Chat not found" });
-  }
-  if (req.url === "/api/chats/delete") {
-    if (u.chats) delete u.chats[String(body.id || "").slice(0, 40)];
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-  if (req.url === "/api/chats/sync") {
-    putChat(u, body.id, body.messages);
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-  if (req.url === "/api/chats/rename") {
-    const c = u.chats?.[String(body.id || "").slice(0, 40)];
-    if (!c) return send(res, 404, { error: "Chat not found" });
-    const t = String(body.title || "").replace(/\s+/g, " ").trim().slice(0, 60);
-    if (t) { c.title = t; c.custom = true; }
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-  if (req.url === "/api/chats/pin") {
-    const c = u.chats?.[String(body.id || "").slice(0, 40)];
-    if (!c) return send(res, 404, { error: "Chat not found" });
-    c.pinned = !!body.pinned;
-    await saveUser(token, u);
-    return send(res, 200, listChats(u));
-  }
-
-  if (req.url === "/api/key" && PROVIDERS[body.provider]) {
-    if (body.key) { u.keys[body.provider] = String(body.key).trim(); delete u.until[body.provider]; u.reason[body.provider] = ""; }
-    else { delete u.keys[body.provider]; if (u.selected === body.provider) u.selected = "auto"; }
-    await saveUser(token, u); return send(res, 200, status(u));
-  }
-  if (req.url === "/api/select") {
-    if (body.provider === "auto" || u.keys[body.provider] || envKey(body.provider)) u.selected = body.provider;
-    await saveUser(token, u); return send(res, 200, status(u));
-  }
-  if (req.url === "/api/test" && PROVIDERS[body.provider]) {
-    const name = body.provider;
-    if (!u.keys[name] && !envKey(name)) return send(res, 200, { ok: false, error: "No key added for this AI yet." });
-    if (!u.keys[name] && dailyCap(name) <= 0) return send(res, 200, { ok: false, error: "Shared use is off for this AI. Add your own key to test it." });
-    try {
-      const out = await ask(u, [{ role: "user", content: "Reply with just the word OK." }], name, true);
-      await saveUser(token, u);
-      return send(res, 200, { ok: true, reply: String(out.reply).slice(0, 60), model: out.model });
-    } catch (e) {
-      await saveUser(token, u);
-      return send(res, 200, { ok: false, error: (e.tried && e.tried[0]) || e.message });
-    }
-  }
-  if (req.url === "/api/chat" && Array.isArray(body.messages)) {
-    const hasOwn = Object.values(u.keys).some(Boolean);
-    if (!ordered(u).length) return send(res, 503, { error: "Add at least one key first. Tap the AI providers button at the top." });
-    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
-    try {
-      const out = await ask(u, body.messages);
-      putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
-      await saveUser(token, u);
-      return send(res, 200, out);
-    } catch (e) { await saveUser(token, u); return send(res, 503, { error: e.message, tried: e.tried || [] }); }
-  }
-  if (req.url === "/api/chat-stream" && Array.isArray(body.messages)) {
-    const hasOwn = Object.values(u.keys).some(Boolean);
-    if (!ordered(u).length) return send(res, 503, { error: "Add at least one key first. Tap the AI providers button at the top." });
-    if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
-    res.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
-    const ac = new AbortController();
-    // If the phone stops the reply (or drops the connection), cancel the provider request too.
-    res.on("close", () => { if (!res.writableFinished) ac.abort(); });
-    try {
-      const out = await askStream(u, body.messages, res, ac.signal);
-      if (out.ok) putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
-    } finally {
-      await saveUser(token, u);
-      res.end();
-    }
-    return;
-  }
-  send(res, 404, { error: "not found" });
-}
-
-http.createServer((req, res) => {
-  route(req, res).catch((e) => {
-    console.error(e);
-    if (!res.headersSent) send(res, 500, { error: "Something went wrong on the server. Try again." });
-  });
-}).listen(process.env.PORT || 3000, () => console.log(`AI Relay on http://localhost:${process.env.PORT || 3000}`));
+// --- start ---
+if (getKey()) { show(true); refresh(); loadChats(); } else show(false);
+setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
+</script>
+</body>
+</html>
