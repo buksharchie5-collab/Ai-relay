@@ -14,7 +14,7 @@
 <style>
   :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
   * { box-sizing:border-box; }
-  html, body { height:100%; margin:0; background:var(--bg); }
+  html, body { height:100%; margin:0; background:var(--bg); overflow-x:hidden; }
   body { color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
   button, input, textarea { font:inherit; color:inherit; }
   button { cursor:pointer; background:none; border:0; padding:0; transition:background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease, transform .15s var(--ease); -webkit-tap-highlight-color:transparent; }
@@ -81,8 +81,8 @@
   .pill { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:14px; font-weight:600; max-width:55vw; }
   .pill span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  #log { flex:1; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:10px 18px 22px; scroll-behavior:auto; }
-  .col { max-width:720px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; gap:30px; }
+  #log { flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:10px 18px 22px; scroll-behavior:auto; }
+  .col { max-width:720px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; gap:30px; min-width:0; }
   #empty { margin:auto 0; padding-top:8vh; transition:opacity .3s ease, transform .3s var(--ease); }
   #empty.off { opacity:0; transform:translateY(-6px); }
   #empty h2 { font-size:28px; font-weight:700; letter-spacing:-0.01em; margin:0 0 18px; }
@@ -94,11 +94,11 @@
   .setup li { margin:4px 0; }
 
   /* chat messages */
-  .msg { max-width:88%; overflow-wrap:anywhere; user-select:text; -webkit-user-select:text; }
+  .msg { max-width:88%; min-width:0; overflow-wrap:anywhere; user-select:text; -webkit-user-select:text; }
   .me { align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; }
   .me .mtxt { padding:10px 16px; background:var(--field); border-radius:22px 22px 6px 22px; white-space:pre-wrap; }
-  .bot { align-self:stretch; max-width:100%; padding:4px 0; }
-  .bot .body { font-size:16.5px; line-height:1.75; color:#ececec; }
+  .bot { align-self:stretch; max-width:100%; min-width:0; padding:4px 0; }
+  .bot .body { font-size:16.5px; line-height:1.75; color:#ececec; min-width:0; max-width:100%; }
   .bot .body p { margin:0 0 18px; }
   .bot .body p:last-child { margin-bottom:0; }
   .bot .body strong { color:#fff; font-weight:700; }
@@ -118,21 +118,22 @@
   .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
   .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
 
-  /* tables with a grid (only when you ask for a table or comparison). Transparent, lines only. */
-  .bot .body .tbl { margin:18px 0 22px; background:transparent; }
+  /* tables with a grid (only when you ask for a table or comparison). Text wraps inside cells, never sideways. */
+  .bot .body .tbl { margin:18px 0 22px; width:100%; max-width:100%; overflow:hidden; background:transparent; }
   .bot .body table { width:100%; border-collapse:collapse; table-layout:auto; font-size:15px; line-height:1.6; }
-  .bot .body th, .bot .body td { text-align:left; vertical-align:top; padding:12px 10px 12px 0; border-bottom:1px solid rgba(255,255,255,.08); overflow-wrap:normal; word-break:normal; }
+  .bot .body th, .bot .body td { text-align:left; vertical-align:top; padding:12px 8px 12px 0; border-bottom:1px solid rgba(255,255,255,.08); min-width:0; overflow-wrap:anywhere; word-break:normal; }
   .bot .body th { color:#fff; font-weight:700; padding-top:4px; }
   .bot .body td { color:#e2e2e2; }
   .bot .body tr:last-child td { border-bottom:0; }
 
-  /* tables without a grid (the default): each row becomes a readable card */
-  .bot .body .rc { padding:14px 0; border-top:1px solid rgba(255,255,255,.08); }
+  /* tables without a grid (the default): each row becomes a readable card, text wraps */
+  .bot .body .rc { padding:14px 0; border-top:1px solid rgba(255,255,255,.08); min-width:0; overflow-wrap:anywhere; }
   .bot .body .rc:first-child { border-top:0; padding-top:4px; }
-  .bot .body .rt { color:#fff; font-weight:700; font-size:16.5px; margin:0 0 6px; }
-  .bot .body .rl { color:#e2e2e2; font-size:15.5px; line-height:1.65; margin:4px 0 0; }
+  .bot .body .rt { color:#fff; font-weight:700; font-size:16.5px; margin:0 0 6px; overflow-wrap:anywhere; }
+  .bot .body .rl { color:#e2e2e2; font-size:15.5px; line-height:1.65; margin:4px 0 0; overflow-wrap:anywhere; }
   .bot .body .rl span { color:var(--mute); font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
 
+  .col, .bot, .bot .body, .msg { min-width:0; max-width:100%; }
   .bot.thinking .body { color:var(--mute); }
   .meta { margin-top:14px; font-size:12px; color:var(--mute); }
   .meta:empty { display:none; }
