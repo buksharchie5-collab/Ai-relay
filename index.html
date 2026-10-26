@@ -118,15 +118,21 @@
   .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
   .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
 
-  /* tables: fixed column widths so the middle column is never squashed; nothing scrolls sideways */
-  .bot .body .tbl { margin:18px 0 22px; border:1px solid #2a2a2a; border-radius:14px; background:#101010; overflow:hidden; }
-  .bot .body table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:15px; line-height:1.55; }
-  .bot .body th, .bot .body td { text-align:left; padding:13px 12px; border-bottom:1px solid #222; vertical-align:top; overflow-wrap:break-word; word-break:normal; }
-  .bot .body th { background:#1b1b1b; color:#fff; font-weight:700; }
+  /* tables with a grid (only when you ask for a table or comparison). Transparent, lines only. */
+  .bot .body .tbl { margin:18px 0 22px; background:transparent; }
+  .bot .body table { width:100%; border-collapse:collapse; table-layout:auto; font-size:15px; line-height:1.6; }
+  .bot .body th, .bot .body td { text-align:left; vertical-align:top; padding:12px 10px 12px 0; border-bottom:1px solid rgba(255,255,255,.08); overflow-wrap:normal; word-break:normal; }
+  .bot .body th { color:#fff; font-weight:700; padding-top:4px; }
   .bot .body td { color:#e2e2e2; }
-  .bot .body th:nth-child(1), .bot .body td:nth-child(1) { width:50px; text-align:center; color:#fff; font-weight:700; }
-  .bot .body th:nth-child(2), .bot .body td:nth-child(2) { width:32%; font-weight:600; color:#fff; }
   .bot .body tr:last-child td { border-bottom:0; }
+
+  /* tables without a grid (the default): each row becomes a readable card */
+  .bot .body .rc { padding:14px 0; border-top:1px solid rgba(255,255,255,.08); }
+  .bot .body .rc:first-child { border-top:0; padding-top:4px; }
+  .bot .body .rt { color:#fff; font-weight:700; font-size:16.5px; margin:0 0 6px; }
+  .bot .body .rl { color:#e2e2e2; font-size:15.5px; line-height:1.65; margin:4px 0 0; }
+  .bot .body .rl span { color:var(--mute); font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
+
   .bot.thinking .body { color:var(--mute); }
   .meta { margin-top:14px; font-size:12px; color:var(--mute); }
   .meta:empty { display:none; }
@@ -473,6 +479,8 @@ const FENCE = new RegExp(TICK + TICK + TICK + "(?:\\w+)?\\n?([\\s\\S]*?)" + TICK
 const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
 // Matches [label](https://...) or a bare https:// address.
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"()\[\]]+)/g;
+// Only show a grid table when the question asks for one.
+const TABLE_ASK = /\btables?\b|\bgrid\b|\bcompar|\bvs\.?\b|\bside by side\b/i;
 function linkRepl(m, label, murl, burl) {
   if (label) return `<a href="${murl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   // Keep trailing punctuation and the escaped "&gt;" / "&quot;" out of the link.
@@ -489,23 +497,43 @@ function inline(t) {
     .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>")
     .replace(LINK_RE, linkRepl);
 }
-// Turns a block of "| a | b |" lines into a table. Cells wrap; nothing scrolls sideways.
-function tableHtml(rows) {
-  const cells = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
-  const isSep = r => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r);
-  let head = null, body = rows;
-  if (rows.length > 1 && isSep(rows[1])) { head = cells(rows[0]); body = rows.slice(2); }
+// Splits a "| a | b |" line into its cells.
+const cellsOf = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
+const isSepRow = r => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r);
+
+// Table as a grid (used only when the question asked for a table or comparison).
+function gridHtml(head, body) {
   let h = '<div class="tbl"><table>';
   if (head) h += "<thead><tr>" + head.map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead>";
-  h += "<tbody>" + body.filter(r => !isSep(r)).map(r => "<tr>" + cells(r).map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  h += "<tbody>" + body.map(cells => "<tr>" + cells.map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
   return h + "</table></div>";
 }
-function textBlock(s) {
+// Table as readable cards (the default). The first column becomes the heading of each card,
+// and the other columns become labelled lines underneath. No grid, no sideways scrolling.
+function cardsHtml(head, body) {
+  return body.map(cells => {
+    const title = cells.length > 2 ? `${cells[0]} · ${cells[1]}` : cells[0];
+    const from = cells.length > 2 ? 2 : 1;
+    const lines = cells.slice(from).map((c, i) => {
+      const label = head && head[from + i] ? `<span>${inline(head[from + i])}</span>` : "";
+      return `<div class="rl">${label}${inline(c)}</div>`;
+    }).join("");
+    return `<div class="rc"><div class="rt">${inline(title || "")}</div>${lines}</div>`;
+  }).join("");
+}
+// Turns a block of "| a | b |" lines into either a grid or cards, depending on what was asked.
+function tableHtml(rows, asGrid) {
+  let head = null, body = rows;
+  if (rows.length > 1 && isSepRow(rows[1])) { head = cellsOf(rows[0]); body = rows.slice(2); }
+  body = body.filter(r => !isSepRow(r)).map(cellsOf);
+  return asGrid ? gridHtml(head, body) : cardsHtml(head, body);
+}
+function textBlock(s, asGrid) {
   const out = [];
   let para = [], list = null, tbl = [];
   const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
   const flushList = () => { if (list) { out.push(`<${list.t}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.t}>`); list = null; } };
-  const flushTable = () => { if (tbl.length) { out.push(tableHtml(tbl)); tbl = []; } };
+  const flushTable = () => { if (tbl.length) { out.push(tableHtml(tbl, asGrid)); tbl = []; } };
   for (const raw of esc(s).split("\n")) {
     const line = raw.trimEnd();
     let m;
@@ -522,7 +550,8 @@ function textBlock(s) {
   flushPara(); flushList(); flushTable();
   return out.join("");
 }
-const fmt = t => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : textBlock(s)).join("");
+// asGrid = true only when the question asked for a table or comparison.
+const fmt = (t, asGrid) => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : textBlock(s, asGrid)).join("");
 
 // --- providers panel ---
 function render() {
@@ -692,12 +721,15 @@ async function syncChat() {
 
 // --- messages ---
 // Your messages get Edit and Delete under them. Replies get Copy under them.
+// A reply shows as a grid only if the question just before it asked for a table or comparison.
 function add(cls, text, meta, idx, quiet) {
   $("empty").classList.add("off");
   const d = document.createElement("div"); d.className = "msg " + cls;
   if (idx !== undefined) d.dataset.i = idx;
   if (cls === "bot") {
-    d.innerHTML = `<div class="body">${fmt(text)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
+    const prev = idx !== undefined ? history[idx - 1] : null;
+    const asGrid = !!(prev && prev.role === "user" && TABLE_ASK.test(String(prev.content)));
+    d.innerHTML = `<div class="body">${fmt(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
   } else {
     d.innerHTML = `<div class="mtxt">${esc(text)}</div><div class="acts2"><button type="button" data-act="edit">Edit</button><button type="button" data-act="del">Delete</button></div>`;
   }
@@ -770,6 +802,7 @@ $("f").addEventListener("submit", async e => {
   bubble.classList.add("thinking", "pop");
   bubble.querySelector(".acts2").classList.add("off"); // hidden until the reply is finished
   pinTo(mine); // your question sits at the top, and the reply comes in below it
+  const asGrid = TABLE_ASK.test(text);
 
   setBusy(true);
   abortCtl = new AbortController();
@@ -783,9 +816,9 @@ $("f").addEventListener("submit", async e => {
     if (pending <= 0) return;
     const step = Math.min(pending, 2 + Math.floor(pending / 50));
     shown = full.slice(0, shown.length + step);
-    body().innerHTML = fmt(shown);
+    body().innerHTML = fmt(shown, asGrid);
   }, 30);
-  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full); };
+  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full, asGrid); };
 
   const onEvent = ev => {
     if (ev.type === "meta") { meta = ev.provider + " · " + ev.model; showMeta(); }
