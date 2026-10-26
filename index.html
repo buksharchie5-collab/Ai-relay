@@ -116,9 +116,9 @@
   .bot .body a { color:#7cb3ff; text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
   .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
   .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
-  .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:
+  .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
 
-                         /* tables: fixed column widths so the middle column is never squashed; nothing scrolls sideways */
+  /* tables: fixed column widths so the middle column is never squashed; nothing scrolls sideways */
   .bot .body .tbl { margin:18px 0 22px; border:1px solid #2a2a2a; border-radius:14px; background:#101010; overflow:hidden; }
   .bot .body table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:15px; line-height:1.55; }
   .bot .body th, .bot .body td { text-align:left; padding:13px 12px; border-bottom:1px solid #222; vertical-align:top; overflow-wrap:break-word; word-break:normal; }
@@ -126,8 +126,6 @@
   .bot .body td { color:#e2e2e2; }
   .bot .body th:nth-child(1), .bot .body td:nth-child(1) { width:50px; text-align:center; color:#fff; font-weight:700; }
   .bot .body th:nth-child(2), .bot .body td:nth-child(2) { width:32%; font-weight:600; color:#fff; }
-  .bot .body tr:last-child td { border-bottom:0; }
-  .bot .body td { color:#e2e2e2; }
   .bot .body tr:last-child td { border-bottom:0; }
   .bot.thinking .body { color:var(--mute); }
   .meta { margin-top:14px; font-size:12px; color:var(--mute); }
@@ -708,7 +706,11 @@ function add(cls, text, meta, idx, quiet) {
   return d;
 }
 const toBottom = () => { log.scrollTop = log.scrollHeight; };
-const toStart = el => { log.scrollTo({ top: log.scrollTop + el.getBoundingClientRect().top - log.getBoundingClientRect().top - 12, behavior: "smooth" }); };
+// Puts an element near the top of the screen. Instant, so it never fights the typing.
+function pinTo(el) {
+  const top = el.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - 12;
+  log.scrollTop = Math.max(0, top);
+}
 function redraw(animate) {
   [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); });
   history.forEach((m, i) => add(m.role === "user" ? "me" : "bot", String(m.content ?? ""), m.meta, i, true));
@@ -762,11 +764,12 @@ $("f").addEventListener("submit", async e => {
   if (editing !== null) { history.length = editing; editing = null; $("editbar").classList.add("off"); redraw(false); }
   q.value = ""; q.style.height = "auto";
   history.push({ role: "user", content: text });
-  const mine = add("me", text, "", history.length - 1);
+  const mine = add("me", text, "", history.length - 1, true);
+  mine.classList.add("pop");
   const bubble = add("bot", "Thinking…", "", history.length, true);
   bubble.classList.add("thinking", "pop");
   bubble.querySelector(".acts2").classList.add("off"); // hidden until the reply is finished
-  log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+  pinTo(mine); // your question sits at the top, and the reply comes in below it
 
   setBusy(true);
   abortCtl = new AbortController();
@@ -774,16 +777,15 @@ $("f").addEventListener("submit", async e => {
   const body = () => bubble.querySelector(".body");
   const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
 
-  // Text arrives in bursts. Show it at a steady, readable pace instead of all at once.
+  // Text arrives in bursts. Show it at a steady pace. The view does not follow it down, so you read from the top.
   const timer = setInterval(() => {
     const pending = full.length - shown.length;
     if (pending <= 0) return;
     const step = Math.min(pending, 2 + Math.floor(pending / 50));
     shown = full.slice(0, shown.length + step);
     body().innerHTML = fmt(shown);
-    toBottom();
   }, 30);
-  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full); toBottom(); };
+  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full); };
 
   const onEvent = ev => {
     if (ev.type === "meta") { meta = ev.provider + " · " + ev.model; showMeta(); }
@@ -829,7 +831,8 @@ $("f").addEventListener("submit", async e => {
     showMeta();
     bubble.querySelector(".acts2").classList.remove("off");
     history.push({ role: "assistant", content: full, meta });
-    toStart(bubble);
+    // Let the layout settle, then line your question up at the top again so the reply starts on screen.
+    requestAnimationFrame(() => setTimeout(() => pinTo(mine), 60));
     if (errorInfo && !stopped) add("note", errorInfo.error);
   } else {
     bubble.remove();
