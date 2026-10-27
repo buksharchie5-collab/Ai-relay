@@ -5,31 +5,24 @@ const path = require("path");
 const crypto = require("crypto");
 const zlib = require("zlib");
 
-// Accounts and chats are saved in Upstash Redis when its two env vars are set (survives redeploys).
-// Otherwise they go to local files, which Render's free plan erases on every restart.
 const UP_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_REDIS = !!(UP_URL && UP_TOKEN);
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
 if (!USE_REDIS) console.log("Note: no Upstash set, so accounts and chats are not kept between deploys on Render's free plan.");
 
-// Fair-use limits. On shared keys these apply to EACH AI separately. Your own keys aren't capped.
-const PER_USER_HOURLY = 20; // messages per person per AI per hour
-const PER_USER_DAILY = 20;  // messages per person per AI per day
-const MAX_CHATS = 50;       // saved chats per person
-const MAX_MESSAGES = 200;   // messages kept per chat
-const MAX_KEYS_PER_DEVICE_PER_DAY = 5; // personal keys one device can create per day (resets at midnight UTC)
+const PER_USER_HOURLY = 20;
+const PER_USER_DAILY = 20;
+const MAX_CHATS = 50;
+const MAX_MESSAGES = 200;
+const MAX_KEYS_PER_DEVICE_PER_DAY = 5;
 
-// Only the latest messages are sent to the AI, so providers don't hit their per-minute token limits.
-const CONTEXT_MESSAGES = 10; // how many recent messages the AI sees
-const CONTEXT_CHARS = 3000;  // long messages are shortened for the AI to this many characters
+const CONTEXT_MESSAGES = 10;
+const CONTEXT_CHARS = 3000;
 
-// `model` = first model name to try. If it isn't available, the app tries the names in `known`, then, if `lookup`
-// is true, the text models the provider lists for your key. `daily` = messages per day on the SHARED key
-// (set in Render as NAME_API_KEY). Override in Render with NAME_DAILY_LIMIT, e.g. MISTRAL_DAILY_LIMIT = 0.
-// `paid` = needs billing. Shared use of a paid AI costs you money, so keep its daily number low.
 const PROVIDERS = {
   Groq: { url: "https://api.groq.com/openai/v1/chat/completions", listUrl: "https://api.groq.com/openai/v1/models", model: "llama-3.3-70b-versatile", known: ["llama-3.1-8b-instant", "openai/gpt-oss-20b"], lookup: false, keyUrl: "https://console.groq.com/keys", daily: 900, paid: false },
   Cerebras: { url: "https://api.cerebras.ai/v1/chat/completions", listUrl: "https://api.cerebras.ai/v1/models", model: "gpt-oss-120b", known: ["llama3.1-8b", "qwen-3-32b"], lookup: false, keyUrl: "https://cloud.cerebras.ai", daily: 500, paid: false },
@@ -39,11 +32,9 @@ const PROVIDERS = {
   Cloudflare: { url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/v1/chat/completions`, listUrl: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID || "missing-account-id"}/ai/models/search?per_page=100`, model: "@cf/openai/gpt-oss-120b", known: ["@cf/deepseek-ai/deepseek-v4-pro-0813"], lookup: true, keyUrl: "https://dash.cloudflare.com/profile/api-tokens", daily: 100, paid: false },
 };
 
-// Keys come from Render's environment, e.g. GROQ_API_KEY, MISTRAL_API_KEY, CLOUDFLARE_API_KEY
 const envKey = (name) => process.env[name.toUpperCase() + "_API_KEY"];
 const dailyCap = (name) => Number(process.env[name.toUpperCase() + "_DAILY_LIMIT"] || PROVIDERS[name].daily);
 
-// Shared daily counters, per provider (reset at midnight UTC)
 let shared = { day: "", n: {} };
 const today = () => new Date().toISOString().slice(0, 10);
 function resetIfNewDay() { if (shared.day !== today()) shared = { day: today(), n: {} }; }
@@ -51,10 +42,8 @@ function sharedLeft(name) {
   resetIfNewDay();
   return dailyCap(name) - (shared.n[name] || 0);
 }
-// True if at least one shared AI still has messages left today
 const sharedUsable = () => Object.keys(PROVIDERS).some((n) => envKey(n) && sharedLeft(n) > 0);
 
-// --- app icon and manifest, so the app can sit on the Home Screen like a real app ---
 const manifest = {
   name: "AI Relay",
   short_name: "AI Relay",
@@ -87,7 +76,6 @@ function pngChunk(type, data) {
   const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
   return Buffer.concat([len, td, crc]);
 }
-// Draws a blue tile with two white arrows (one pointing right, one pointing left).
 function makeIcon(size) {
   const stride = size * 3 + 1;
   const raw = Buffer.alloc(stride * size);
@@ -122,15 +110,12 @@ function makeIcon(size) {
 const iconCache = {};
 const iconFor = (size) => (iconCache[size] ||= makeIcon(size));
 
-// --- text helpers ---
 const textOf = (c) => Array.isArray(c) ? ((c.find((p) => p && p.type === "text") || {}).text || "") : String(c ?? "");
 
-// --- storage: Upstash Redis when configured, otherwise one encrypted local file per access key ---
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
 const idOf = (t) => sha("id:" + t).toString("hex");
 const fileOf = (t) => path.join(DIR, idOf(t) + ".bin");
 
-// Talks to Upstash over its REST API. Each command is a JSON array, e.g. ["GET", "key"].
 async function redis(cmd) {
   const r = await fetch(UP_URL, {
     method: "POST",
@@ -155,7 +140,27 @@ async function writeBlob(t, buf) {
   fs.writeFileSync(fileOf(t), buf);
 }
 
-// Counts how many personal keys a device has created today. The counter expires at midnight UTC.
+// --- sign-up counters: all-time total, and per day ---
+const memStats = { total: 0, byDay: {} };
+async function countSignup() {
+  if (USE_REDIS) {
+    await redis(["INCR", "stats:signups:total"]);
+    await redis(["INCR", "stats:signups:day:" + today()]);
+    await redis(["EXPIRE", "stats:signups:day:" + today(), "172800"]);
+    return;
+  }
+  memStats.total++;
+  memStats.byDay[today()] = (memStats.byDay[today()] || 0) + 1;
+}
+async function signupStats() {
+  if (USE_REDIS) {
+    const total = Number(await redis(["GET", "stats:signups:total"]) || 0);
+    const todayCount = Number(await redis(["GET", "stats:signups:day:" + today()]) || 0);
+    return { total, today: todayCount };
+  }
+  return { total: memStats.total, today: memStats.byDay[today()] || 0 };
+}
+
 const memCounts = {};
 async function bumpDeviceCountToday(deviceId) {
   const id = sha("device:" + today() + ":" + deviceId).toString("hex");
@@ -173,7 +178,6 @@ function secondsUntilMidnightUTC() {
   const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
   return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
 }
-// Friendly reset time, e.g. "in about 7 hours".
 function resetMessage() {
   const secs = secondsUntilMidnightUTC();
   const hours = Math.floor(secs / 3600), mins = Math.ceil((secs % 3600) / 60);
@@ -199,7 +203,6 @@ async function saveUser(t, u) {
   await writeBlob(t, Buffer.concat([iv, c.getAuthTag(), enc]));
 }
 
-// --- per-AI limits for one person: each AI has its own hourly and daily count ---
 function limitOf(u, name) {
   u.lim ||= {};
   const L = (u.lim[name] ||= { hs: 0, hn: 0, day: "", dn: 0 });
@@ -208,7 +211,6 @@ function limitOf(u, name) {
   return L;
 }
 
-// --- profile: a name and how the AI should talk to this person ---
 function profileSystem(u) {
   const p = u.profile || {};
   const parts = [];
@@ -218,7 +220,6 @@ function profileSystem(u) {
 }
 const withSystem = (sys, msgs) => (sys ? [{ role: "system", content: sys }, ...msgs] : msgs);
 
-// --- saved chats: pinned chats stay on top, renamed titles are kept ---
 function putChat(u, id, messages) {
   if (!id || !Array.isArray(messages)) return;
   const key = String(id).slice(0, 40);
@@ -247,8 +248,7 @@ const listChats = (u) => Object.values(u.chats || {})
   .sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated))
   .map(({ id, title, updated, pinned }) => ({ id, title, updated, pinned: !!pinned }));
 
-// --- model names: remember the one that worked for each AI ---
-const models = {}; // AI name -> model name that last worked
+const models = {};
 const modelFor = (name) => models[name] || PROVIDERS[name].model;
 
 function errText(text) {
@@ -261,14 +261,11 @@ function errText(text) {
 
 const headersFor = (key) => ({ "Content-Type": "application/json", Authorization: `Bearer ${key}` });
 
-// Is this error about the model name (so trying another name may help)?
 const isModelError = (status, text) =>
   status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|unsupported|slug|isn't available|not available|decommissioned/i.test(text));
 
-// Names that are never chat models.
 const NOT_CHAT = /embed|whisper|tts|guard|vision|image|rerank|moderation|audio|dall|diffusion|clip|safety|speech|transcri|robotics|ocr|\br1\b|distill|reward|prompt|code|vl\b|-vl|asr|stt|clef|clairic|moondream|flux|stable|bge|whisper|resnet|aura|melotts|sqlcoder|uform/i;
 
-// Ask the provider which models this key can use. Returns the list of names (may be empty), or null if unreadable.
 async function listModels(name, key) {
   const p = PROVIDERS[name];
   try {
@@ -289,10 +286,6 @@ async function listModels(name, key) {
   } catch { return null; }
 }
 
-// Choose the next model name to try.
-// 1. Known names that the provider lists for this key.
-// 2. For AIs with lookup on, any text model the provider lists for this key.
-// 3. The next known name, even if it isn't listed.
 async function findNextModel(name, key, skip) {
   const p = PROVIDERS[name];
   const available = await listModels(name, key);
@@ -308,14 +301,12 @@ async function findNextModel(name, key, skip) {
   return (p.known || []).find((id) => !skip.has(id)) || null;
 }
 
-// --- failover logic, per user ---
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
 const resting = (u, n) => (u.until[n] || 0) > Date.now();
 function ordered(u) {
   const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n));
   return have.includes(u.selected) ? [u.selected, ...have.filter((n) => n !== u.selected)] : have;
 }
-// If the person pinned an AI, use ONLY that AI. Auto-switch uses them all in order.
 function planFor(u) {
   const all = ordered(u);
   return u.selected !== "auto" && all.includes(u.selected) ? [u.selected] : all;
@@ -326,7 +317,6 @@ function cooldownFor(res, text) {
   return /day|daily|quota|credit|billing|balance/i.test(text) ? 3600000 : 60000;
 }
 
-// Keep only the latest messages (starting with a user message) and shorten very long text.
 function trimContext(messages, n) {
   let out = messages.slice(-n);
   while (out.length && out[0].role !== "user") out = out.slice(1);
@@ -336,7 +326,6 @@ function trimContext(messages, n) {
   });
 }
 
-// Turns a failed provider response into a clear result the failover logic understands.
 function classifyFailure(res, text, model) {
   const detail = errText(text);
   if (isModelError(res.status, text)) {
@@ -349,7 +338,6 @@ function classifyFailure(res, text, model) {
   return { ok: false, reason: `HTTP ${res.status}${detail ? ": " + detail : ""}`, cooldown };
 }
 
-// Call one AI with one model name (no streaming). Used by the Test button.
 async function callModel(name, key, model, messages, sys) {
   const p = PROVIDERS[name];
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -376,8 +364,6 @@ async function callModel(name, key, model, messages, sys) {
   return { ok: false, reason: "request failed", cooldown: 30000 };
 }
 
-// Streams one AI's reply. Each piece of text is sent to the phone as it arrives.
-// Returns { ok, reply, tokens } when finished, or { ok:false, reason, cooldown, modelError, partial, aborted }.
 async function streamModel(name, key, model, messages, sys, ev, signal) {
   const p = PROVIDERS[name];
   const ctx = withSystem(sys, trimContext(messages, CONTEXT_MESSAGES));
@@ -417,7 +403,6 @@ async function streamModel(name, key, model, messages, sys, ev, signal) {
         }
       }
     } else {
-      // Provider ignored the stream request and sent one normal reply.
       const j = JSON.parse(await res.text());
       full = j.choices?.[0]?.message?.content || "";
       if (full) { sent = true; ev({ type: "delta", text: full }); }
@@ -431,7 +416,6 @@ async function streamModel(name, key, model, messages, sys, ev, signal) {
   }
 }
 
-// Non-streaming ask, used by the Test button.
 async function ask(u, messages, only, test) {
   const tried = [];
   const sys = profileSystem(u);
@@ -450,7 +434,6 @@ async function ask(u, messages, only, test) {
     const s = usage(u, name);
     const key = u.keys[name] || envKey(name);
 
-    // Try the saved or default model. If it isn't available, move to the next name.
     const skip = new Set();
     let answered = null, last = null;
     let model = modelFor(name);
@@ -490,7 +473,6 @@ async function ask(u, messages, only, test) {
   err.tried = tried; throw err;
 }
 
-// Streaming version of ask(). Writes events to the phone and returns the result.
 async function askStream(u, messages, res, signal) {
   const ev = (o) => { if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(o) + "\n"); };
   const tried = [];
@@ -542,7 +524,6 @@ async function askStream(u, messages, res, signal) {
       return { ok: true, reply: got.reply, tokens: got.tokens, provider: name, model: got.model, fellBack };
     }
 
-    // Text already reached the phone: stop here, keep what was written, and say why it stopped.
     if (last && last.partial) {
       s.fail++; u.reason[name] = last.reason; u.until[name] = Date.now() + (last.cooldown || 60000);
       ev({ type: "error", error: `${name} stopped partway: ${last.reason}`, partial: true });
@@ -576,7 +557,7 @@ function status(u) {
         resumesInSec: Math.max(0, Math.ceil(((u.until[name] || 0) - Date.now()) / 1000)), reason: u.reason[name] || "",
         requests: s.ok, errors: s.fail, tokens: s.tokens, left: s.left,
         usedThisHour: L ? L.hn : null, usedToday: L ? L.dn : null,
-        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null }; // provider keys are never sent back
+        sharedLeftToday: envKey(name) ? Math.max(0, sharedLeft(name)) : null };
     }),
   };
 }
@@ -584,7 +565,6 @@ function status(u) {
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
 async function route(req, res) {
-  // Home Screen icon and app settings
   if (req.method === "GET" && req.url === "/manifest.json") {
     res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" });
     return res.end(JSON.stringify(manifest));
@@ -595,18 +575,46 @@ async function route(req, res) {
     return res.end(iconFor(size));
   }
 
+  // Admin page: a separate file that asks for the admin key.
+  if (req.method === "GET" && req.url === "/admin.html") {
+    return fs.readFile(path.join(__dirname, "admin.html"), (err, data) => {
+      if (err) { res.writeHead(404); return res.end("Not found"); }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }); res.end(data);
+    });
+  }
+
   if (!req.url.startsWith("/api/")) {
     return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
       if (err) { res.writeHead(404); return res.end("Not found"); }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(data);
     });
   }
+
+  // Admin stats: returns nothing useful unless the ADMIN_KEY header matches.
+  if (req.url === "/api/admin/stats" && req.method === "GET") {
+    const given = String(req.headers["x-admin-key"] || "");
+    const a = Buffer.from(given), b = Buffer.from(ADMIN_KEY);
+    const ok = ADMIN_KEY.length >= 30 && a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!ok) return send(res, 401, { error: "Not allowed" });
+    resetIfNewDay();
+    const signups = await signupStats();
+    const sharedToday = {};
+    for (const name of Object.keys(PROVIDERS)) {
+      sharedToday[name] = { used: shared.n[name] || 0, cap: dailyCap(name), configured: !!envKey(name) };
+    }
+    return send(res, 200, {
+      signups,
+      sharedToday,
+      storage: USE_REDIS ? "Upstash (kept between deploys)" : "local memory (resets on restart)",
+      sharedCounterNote: "Shared-AI counters are in memory and reset when the server restarts.",
+    });
+  }
+
   let raw = "";
   for await (const c of req) { raw += c; if (raw.length > 6e6) return send(res, 413, { error: "too large" }); }
   let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { error: "bad request" }); }
 
   if (req.url === "/api/signup" && req.method === "POST") {
-    // Limit per device. The app sends a random device ID it stores on the phone.
     const device = String(body.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
     if (!device) return send(res, 400, { error: "Could not identify this device. Reload the page and tap Create my key again." });
     const count = await bumpDeviceCountToday(device);
@@ -615,6 +623,7 @@ async function route(req, res) {
     }
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
     await saveUser(token, newUser());
+    await countSignup();
     return send(res, 200, { token });
   }
   const token = req.headers["x-access-key"] || "";
@@ -702,7 +711,6 @@ async function route(req, res) {
     if (!hasOwn && !sharedUsable()) return send(res, 503, { error: "Today's shared limit is used up on every AI. It resets at midnight UTC. You can also add your own key." });
     res.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
     const ac = new AbortController();
-    // If the phone stops the reply (or drops the connection), cancel the provider request too.
     res.on("close", () => { if (!res.writableFinished) ac.abort(); });
     try {
       const out = await askStream(u, body.messages, res, ac.signal);
