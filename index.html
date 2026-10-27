@@ -45,6 +45,7 @@
   @keyframes msgIn { from { opacity:0; transform:translateY(12px) scale(.985); } to { opacity:1; transform:none; } }
   @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
   @keyframes breathe { 0%,100% { opacity:.45; } 50% { opacity:1; } }
+  @keyframes popCheck { 0% { transform:scale(.6); opacity:0; } 60% { transform:scale(1.15); opacity:1; } 100% { transform:scale(1); } }
   .enter { animation:pageIn .42s var(--ease) both; }
   .pop { animation:msgIn .34s var(--ease) both; }
   .appear { animation:pageIn .36s var(--ease) both; }
@@ -75,7 +76,7 @@
   code.key { display:block; padding:12px; margin:0 0 12px; background:var(--field); border-radius:10px; font:13px ui-monospace, Menlo, monospace; word-break:break-all; }
   .err { width:100%; max-width:440px; color:var(--warn); font-size:14px; min-height:20px; margin:0; text-align:center; transition:opacity .2s ease; }
 
-  /* app shell: fixed to the whole screen so the chat box sits at the very bottom */
+  /* app shell */
   #app { position:fixed; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
   .top { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px; }
   .pill { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:14px; font-weight:600; max-width:55vw; }
@@ -115,9 +116,22 @@
   .bot .body hr { border:0; border-top:1px solid #2a2a2a; margin:28px 0; }
   .bot .body a { color:#7cb3ff; text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
   .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
-  .bot .body pre { margin:16px 0; padding:14px 16px; overflow-x:auto; background:#111; border:1px solid #232323; border-radius:14px; white-space:pre; line-height:1.5; }
-  .bot .body pre code { padding:0; background:none; color:#e8e8e8; font-size:14px; }
-  .bot .body sup { font-size:.7em; line-height:0; }
+  .bot .body sup, .bot .body sub { font-size:.7em; line-height:0; }
+  .bot .body sup { vertical-align:super; }
+  .bot .body sub { vertical-align:sub; }
+
+  /* code blocks with Copy and Save buttons */
+  .codeblk { margin:16px 0 22px; border:1px solid #232323; border-radius:14px; background:#111; overflow:hidden; }
+  .codehead { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 8px 8px 14px; background:#1a1a1a; border-bottom:1px solid #232323; font-size:12.5px; color:var(--mute); }
+  .codehead .lang { font-weight:600; letter-spacing:.02em; }
+  .codehead .cbtns { display:flex; gap:6px; }
+  .codehead .cbtn { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:#262626; color:var(--ink); font-size:12.5px; font-weight:600; }
+  .codehead .cbtn:hover { background:#333; }
+  .codehead .cbtn svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .codehead .cbtn.done { background:#14532d; color:#bbf7d0; }
+  .codehead .cbtn.done svg { animation:popCheck .35s var(--ease) both; }
+  .codeblk pre { margin:0; padding:14px 16px; overflow-x:auto; white-space:pre; line-height:1.5; font:13.5px/1.5 ui-monospace, Menlo, monospace; color:#e8e8e8; }
+  .codeblk pre code { padding:0; background:none; color:inherit; font:inherit; }
 
   /* tables with a grid (only when you ask for a table or comparison). Text wraps inside cells, never sideways. */
   .bot .body .tbl { margin:18px 0 22px; width:100%; max-width:100%; overflow:hidden; background:transparent; }
@@ -144,7 +158,7 @@
   .me .acts2 { justify-content:flex-end; }
   .note { align-self:center; color:var(--warn); font-size:14px; text-align:center; max-width:92%; }
 
-  /* composer: rounded card like the Claude app. Text on top, controls underneath. */
+  /* composer */
   .composer { padding:0 14px 4px; }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
   .box { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px; background:#1c1c1c; border:1px solid #2c2c2c; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.35); transition:box-shadow .2s ease, border-color .2s ease; }
@@ -201,7 +215,7 @@
   .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
   .seg { display:inline-flex; margin-bottom:10px; }
 
-  /* bottom sheets (the + menu is a drop-up card) */
+  /* bottom sheets */
   .sheet { position:absolute; inset:0; z-index:40; display:flex; align-items:flex-end; pointer-events:none; }
   .sheet .bg { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .3s ease; }
   .sheet.show { pointer-events:auto; }
@@ -237,7 +251,6 @@
   .guide .tip { margin-top:14px; padding:10px 12px; background:var(--raised); border-radius:12px; font-size:13px; color:var(--mute); }
   .guide .tip b { color:var(--ink); }
 
-  /* respect "reduce motion" on the phone */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
   }
@@ -429,9 +442,8 @@ const SEND_ICON = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></s
 const STOP_ICON = '<svg class="stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 let history = [], chatId = newId(), st = null, busy = false, editing = null, openedAt = 0;
 let abortCtl = null, profile = { name: "", style: "" };
-const testResult = {}; // provider name -> result text from the Test button
+const testResult = {};
 
-// Restarts a CSS animation class on an element.
 function play(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 
 async function api(path, body) {
@@ -448,7 +460,7 @@ function panel(cls) { app.classList.remove("side-open", "drawer-open"); if (cls)
 const closeAll = () => panel(null);
 function closeSheets() { document.querySelectorAll(".sheet.show").forEach(s => s.classList.remove("show")); }
 function openSheetEl(id) { closeAll(); closeSheets(); openedAt = Date.now(); $(id).classList.add("show"); }
-const recentlyOpened = () => Date.now() - openedAt < 400; // ignore the tap that opened a sheet
+const recentlyOpened = () => Date.now() - openedAt < 400;
 document.addEventListener("click", e => { if (e.target.dataset && e.target.dataset.close !== undefined && !recentlyOpened()) closeSheets(); });
 
 function signOut() {
@@ -471,40 +483,48 @@ function updateGreeting() {
   if (g.textContent !== text) { g.textContent = text; play(g, "fade-in"); }
 }
 
-// --- Home Screen guide: from the sign-in corner button and the menu ---
 $("homeBtn").onclick = () => openSheetEl("hsheet");
 $("sideHome").onclick = () => openSheetEl("hsheet");
 
-// --- formatter: headings, bold, italics, lists, tables, code, links, paragraphs (escapes everything first, so it is safe) ---
+// --- formatter ---
 const TICK = String.fromCharCode(96);
-const FENCE = new RegExp(TICK + TICK + TICK + "(?:\\w+)?\\n?([\\s\\S]*?)" + TICK + TICK + TICK);
+const FENCE = new RegExp(TICK + TICK + TICK + "(\\w*)\\n?([\\s\\S]*?)" + TICK + TICK + TICK);
 const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
-// Matches [label](https://...) or a bare https:// address.
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"()\[\]]+)/g;
-// Only show a grid table when the question asks for one.
 const TABLE_ASK = /\btables?\b|\bgrid\b|\bcompar|\bvs\.?\b|\bside by side\b/i;
+
+// File extension for each language name, used by Save as file.
+const EXT = { javascript:"js", js:"js", typescript:"ts", ts:"ts", python:"py", py:"py", java:"java", html:"html", css:"css", json:"json", c:"c", cpp:"cpp", "c++":"cpp", csharp:"cs", "c#":"cs", go:"go", rust:"rs", php:"php", ruby:"rb", swift:"swift", kotlin:"kt", sql:"sql", bash:"sh", shell:"sh", sh:"sh", xml:"xml", yaml:"yml", markdown:"md", md:"md" };
+
+// Keep the raw code for each block here, so the buttons can copy or save it.
+const codeStore = [];
+
 function linkRepl(m, label, murl, burl) {
   if (label) return `<a href="${murl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-  // Keep trailing punctuation and the escaped "&gt;" / "&quot;" out of the link.
   let url = burl, tail = "";
   const t = url.match(/(?:&gt;|&quot;|[.,;:!?'])+$/);
   if (t) { tail = t[0]; url = url.slice(0, -tail.length); }
   return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
 }
-// Tidies up text the AI wrote with LaTeX maths, so it reads cleanly.
 function cleanMaths(t) {
+  const greek = { alpha:"α", beta:"β", gamma:"γ", delta:"δ", theta:"θ", lambda:"λ", mu:"μ", nu:"ν", rho:"ρ", sigma:"σ", tau:"τ", phi:"φ", omega:"ω", pi:"π", Omega:"Ω", Delta:"Δ", Sigma:"Σ", epsilon:"ε", kappa:"κ" };
+  const sym = { approx:"≈", times:"×", cdot:"·", pm:"±", infty:"∞", neq:"≠", leq:"≤", geq:"≥", to:"→", rightarrow:"→", partial:"∂", nabla:"∇", sqrt:"√" };
   return t
-    .replace(/\\[()\[\]]/g, "")                 // remove \( \) \[ \] wrappers
-    .replace(/\\approx/g, "≈")
-    .replace(/\\times/g, "×")
-    .replace(/\\text\{([^}]*)\}/g, "$1")         // \text{m/s} becomes m/s
+    .replace(/\\[()\[\]]/g, "")
+    .replace(/\\text\{([^}]*)\}/g, "$1")
+    .replace(/\\(?:rm|mathrm|mathbf)\{([^}]*)\}/g, "$1")
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "($1)/($2)")
+    .replace(/\\([a-zA-Z]+)/g, (m, w) => greek[w] || sym[w] || w)
     .replace(/\\[, ]/g, " ")
-    .replace(/\^(\d+)/g, "<sup>$1</sup>")        // ^2 becomes a small 2
-    .replace(/\\(?=[a-zA-Z])/g, "");             // any leftover backslash before a word
+    .replace(/\^\{([^}]*)\}/g, "<sup>$1</sup>")
+    .replace(/\^(\d+)/g, "<sup>$1</sup>")
+    .replace(/_\{([^}]*)\}/g, "<sub>$1</sub>")
+    .replace(/_(\w)/g, "<sub>$1</sub>")
+    .replace(/\s*\{\s*\}\s*/g, "");
 }
 function inline(t) {
   t = cleanMaths(t)
-    .replace(/&lt;br\s*\/?&gt;/gi, "<br>")       // <br> becomes a real line break
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>")
     .replace(/\s*•\s*/g, (m, off) => (off === 0 ? "• " : "<br>• "));
   return t
     .replace(INLINE, "<code>$1</code>")
@@ -513,19 +533,15 @@ function inline(t) {
     .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>")
     .replace(LINK_RE, linkRepl);
 }
-// Splits a "| a | b |" line into its cells.
 const cellsOf = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
 const isSepRow = r => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r);
 
-// Table as a grid (used only when the question asked for a table or comparison).
 function gridHtml(head, body) {
   let h = '<div class="tbl"><table>';
   if (head) h += "<thead><tr>" + head.map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead>";
   h += "<tbody>" + body.map(cells => "<tr>" + cells.map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
   return h + "</table></div>";
 }
-// Table as readable cards (the default). The first column becomes the heading of each card,
-// and the other columns become lines underneath. No grid, no sideways scrolling.
 function cardsHtml(head, body) {
   return body.map(cells => {
     const title = cells.length > 2 ? `${cells[0]} · ${cells[1]}` : cells[0];
@@ -534,7 +550,6 @@ function cardsHtml(head, body) {
     return `<div class="rc"><div class="rt">${inline(title || "")}</div>${lines}</div>`;
   }).join("");
 }
-// Turns a block of "| a | b |" lines into either a grid or cards, depending on what was asked.
 function tableHtml(rows, asGrid) {
   let head = null, body = rows;
   if (rows.length > 1 && isSepRow(rows[1])) { head = cellsOf(rows[0]); body = rows.slice(2); }
@@ -563,17 +578,83 @@ function textBlock(s, asGrid) {
   flushPara(); flushList(); flushTable();
   return out.join("");
 }
-// asGrid = true only when the question asked for a table or comparison.
-const fmt = (t, asGrid) => t.split(FENCE).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : textBlock(s, asGrid)).join("");
+// A code block gets a header with its language, a Copy button and a Save button.
+// The code is stored in codeStore and looked up by index, so quotes and symbols stay safe.
+function codeBlockHtml(lang, code) {
+  const i = codeStore.length;
+  codeStore.push({ lang: (lang || "").toLowerCase(), code });
+  const label = lang ? lang : "code";
+  return `<div class="codeblk" data-code="${i}">
+    <div class="codehead"><span class="lang">${esc(label)}</span>
+      <span class="cbtns">
+        <button type="button" class="cbtn" data-cact="copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span>Copy</span></button>
+        <button type="button" class="cbtn" data-cact="save"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Save</span></button>
+      </span>
+    </div>
+    <pre><code>${esc(code)}</code></pre>
+  </div>`;
+}
+// Splits the text into normal text and code blocks.
+const fmt = (t, asGrid) => t.split(FENCE).map((s, i) => {
+  const k = i % 3;
+  if (k === 0) return textBlock(s, asGrid);
+  if (k === 1) return ""; // language name, already used below
+  return codeBlockHtml(t.split(FENCE)[i - 1] || "", s);
+}).join("");
 
-// --- providers panel ---
+// Copy and Save buttons on code blocks. Event delegation, so it works on every reply.
+col.addEventListener("click", async e => {
+  const cb = e.target.closest("[data-cact]");
+  if (!cb) return;
+  const blk = cb.closest(".codeblk");
+  const item = codeStore[Number(blk.dataset.code)];
+  if (!item) return;
+  if (cb.dataset.cact === "copy") {
+    try { await navigator.clipboard.writeText(item.code); } catch { alert("Could not copy. Hold the code to select it instead."); return; }
+    const span = cb.querySelector("span");
+    cb.classList.add("done");
+    cb.querySelector("svg").innerHTML = '<path d="M5 12l5 5 9-10"/>';
+    span.textContent = "Copied";
+    setTimeout(() => { cb.classList.remove("done"); cb.querySelector("svg").innerHTML = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'; span.textContent = "Copy"; }, 1400);
+  }
+  if (cb.dataset.cact === "save") {
+    const ext = EXT[item.lang] || "txt";
+    const blob = new Blob([item.code], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "code-" + (Number(blk.dataset.code) + 1) + "." + ext;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    const span = cb.querySelector("span");
+    cb.classList.add("done"); span.textContent = "Saved";
+    setTimeout(() => { cb.classList.remove("done"); span.textContent = "Save"; }, 1400);
+  }
+});
+
+const fmtText = (t, asGrid) => textBlock(t, asGrid);
+
+// Fast, correct version of fmt for streaming: codeStore is reset per render so indexes stay right.
+function renderBody(t, asGrid) {
+  codeStore.length = 0;
+  return fmtFull(t, asGrid);
+}
+function fmtFull(t, asGrid) {
+  const parts = t.split(FENCE);
+  let out = "";
+  for (let i = 0; i < parts.length; i++) {
+    const k = i % 3;
+    if (k === 0) out += textBlock(parts[i], asGrid);
+    else if (k === 2) out += codeBlockHtml(parts[i - 1] || "", parts[i]);
+  }
+  return out;
+}
+
 function render() {
   if (!st) return;
   const live = st.providers.filter(p => p.hasKey), name = st.current || st.nextUp;
   const cur = live.find(p => p.name === name);
   $("ptxt").textContent = !live.length ? "Add a key" : !st.nextUp ? "All resting" : (st.selected === "auto" ? "Auto · " : "Pinned · ") + (cur ? cur.name : st.nextUp);
   $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
-  // The model pill above the send button
   $("mtxt").textContent = st.selected === "auto" ? "Auto" : (cur ? cur.name : (st.selected || "Auto"));
   $("mprov").textContent = !live.length ? "" : (cur ? "· " + cur.name : (st.nextUp ? "· " + st.nextUp : ""));
   $("setup").classList.toggle("off", st.providers.some(p => p.own));
@@ -614,7 +695,6 @@ $("drawer").addEventListener("click", async e => {
   } catch {}
 });
 
-// --- usage: each AI on its own ---
 function renderUsage() {
   if (!st) { $("usebody").innerHTML = `<p class="hint">Loading…</p>`; return; }
   const live = st.providers.filter(p => p.hasKey);
@@ -626,7 +706,6 @@ function renderUsage() {
 }
 async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
 
-// --- profile ---
 function openProfile() {
   $("pName").value = profile.name || "";
   $("pStyle").value = profile.style || "";
@@ -642,7 +721,6 @@ $("pSave").onclick = async () => {
   } catch (e) { alert(e.message); }
 };
 
-// --- sharing a chat (text only) ---
 function transcriptOf(messages) {
   return messages.map(m => (m.role === "user" ? "You: " : "AI Relay: ") + String(m.content)).join("\n\n");
 }
@@ -658,7 +736,6 @@ function shareChat() {
   if (!history.length) { alert("Start a chat first, then you can share it."); return; }
   shareText("AI Relay chat", transcriptOf(history));
 }
-// Shares a saved chat from the list without opening it.
 async function shareSaved(id) {
   try {
     const c = await api("/api/chats/open", { id });
@@ -668,7 +745,6 @@ async function shareSaved(id) {
 }
 $("sideShare").onclick = () => { closeAll(); shareChat(); };
 
-// --- navigation ---
 $("menu").onclick = () => panel("side-open");
 $("sideclose").onclick = closeAll;
 $("pill").onclick = () => panel("drawer-open");
@@ -682,7 +758,6 @@ $("sideOut").onclick = signOut;
 $("auto").onclick = async () => { try { st = await api("/api/select", { provider: "auto" }); render(); } catch {} };
 document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAll(); closeSheets(); } });
 
-// --- + menu (drop-up) ---
 $("plus").onclick = () => openSheetEl("attach");
 $("attach").addEventListener("click", e => {
   const b = e.target.closest("[data-att]"); if (!b) return;
@@ -694,7 +769,6 @@ $("attach").addEventListener("click", e => {
   closeSheets();
 });
 
-// --- saved chats: open, share, pin, delete ---
 async function loadChats() {
   if (!getKey()) return;
   try {
@@ -732,9 +806,6 @@ async function syncChat() {
   try { await api("/api/chats/sync", { id: chatId, messages: history.map(({ role, content, meta }) => ({ role, content, meta })) }); loadChats(); } catch {}
 }
 
-// --- messages ---
-// Your messages get Edit and Delete under them. Replies get Copy under them.
-// A reply shows as a grid only if the question just before it asked for a table or comparison.
 function add(cls, text, meta, idx, quiet) {
   $("empty").classList.add("off");
   const d = document.createElement("div"); d.className = "msg " + cls;
@@ -742,7 +813,7 @@ function add(cls, text, meta, idx, quiet) {
   if (cls === "bot") {
     const prev = idx !== undefined ? history[idx - 1] : null;
     const asGrid = !!(prev && prev.role === "user" && TABLE_ASK.test(String(prev.content)));
-    d.innerHTML = `<div class="body">${fmt(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
+    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button></div>`;
   } else {
     d.innerHTML = `<div class="mtxt">${esc(text)}</div><div class="acts2"><button type="button" data-act="edit">Edit</button><button type="button" data-act="del">Delete</button></div>`;
   }
@@ -751,7 +822,6 @@ function add(cls, text, meta, idx, quiet) {
   return d;
 }
 const toBottom = () => { log.scrollTop = log.scrollHeight; };
-// Puts an element near the top of the screen. Instant, so it never fights the typing.
 function pinTo(el) {
   const top = el.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - 12;
   log.scrollTop = Math.max(0, top);
@@ -770,14 +840,12 @@ function cancelEdit(keepText) {
 $("editcancel").onclick = () => cancelEdit(false);
 $("sugg").onclick = e => { const s = e.target.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
 
-// Copy / Edit / Delete buttons under messages.
 col.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const msg = b.closest(".msg"); if (!msg) return;
   const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
   const act = b.dataset.act;
   if (act === "copy") {
-    // Copy your question, then the answer, so the copy makes sense on its own.
     const q0 = history[i - 1] && history[i - 1].role === "user" ? String(history[i - 1].content) : "";
     const text = q0 ? "You: " + q0 + "\n\nAI Relay: " + String(m.content) : String(m.content);
     try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1200); }
@@ -793,7 +861,6 @@ col.addEventListener("click", async e => {
 q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
 q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) $("f").requestSubmit(); } });
 
-// The send button becomes a stop button while a reply is being written.
 function setBusy(on) {
   busy = on;
   send.innerHTML = on ? STOP_ICON : SEND_ICON;
@@ -813,8 +880,8 @@ $("f").addEventListener("submit", async e => {
   mine.classList.add("pop");
   const bubble = add("bot", "Thinking…", "", history.length, true);
   bubble.classList.add("thinking", "pop");
-  bubble.querySelector(".acts2").classList.add("off"); // hidden until the reply is finished
-  pinTo(mine); // your question sits at the top, and the reply comes in below it
+  bubble.querySelector(".acts2").classList.add("off");
+  pinTo(mine);
   const asGrid = TABLE_ASK.test(text);
 
   setBusy(true);
@@ -823,15 +890,14 @@ $("f").addEventListener("submit", async e => {
   const body = () => bubble.querySelector(".body");
   const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
 
-  // Text arrives in bursts. Show it at a steady pace. The view does not follow it down, so you read from the top.
   const timer = setInterval(() => {
     const pending = full.length - shown.length;
     if (pending <= 0) return;
     const step = Math.min(pending, 2 + Math.floor(pending / 50));
     shown = full.slice(0, shown.length + step);
-    body().innerHTML = fmt(shown, asGrid);
+    body().innerHTML = renderBody(shown, asGrid);
   }, 30);
-  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = fmt(full, asGrid); };
+  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = renderBody(full, asGrid); };
 
   const onEvent = ev => {
     if (ev.type === "meta") { meta = ev.provider + " · " + ev.model; showMeta(); }
@@ -866,7 +932,7 @@ $("f").addEventListener("submit", async e => {
     if (!(abortCtl && abortCtl.signal.aborted)) errorInfo = errorInfo || { error: err.message };
   }
 
-  flush(); // show everything that arrived, even if the stream ended early
+  flush();
   const stopped = !!(abortCtl && abortCtl.signal.aborted);
   abortCtl = null;
   setBusy(false);
@@ -877,7 +943,6 @@ $("f").addEventListener("submit", async e => {
     showMeta();
     bubble.querySelector(".acts2").classList.remove("off");
     history.push({ role: "assistant", content: full, meta });
-    // Let the layout settle, then line your question up at the top again so the reply starts on screen.
     requestAnimationFrame(() => setTimeout(() => pinTo(mine), 60));
     if (errorInfo && !stopped) add("note", errorInfo.error);
   } else {
@@ -892,7 +957,6 @@ $("f").addEventListener("submit", async e => {
   refresh();
 });
 
-// --- sign in ---
 const notServed = () => !/^https?:$/.test(location.protocol);
 const serverMsg = "AI Relay can't reach its server from here. Open it at your AI Relay web address, or run it locally and open http://localhost:3000.";
 function deviceId() {
@@ -929,7 +993,6 @@ $("enter").onclick = async () => {
   catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
 };
 
-// --- start ---
 if (getKey()) { show(true); refresh(); loadChats(); } else show(false);
 setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
 </script>
