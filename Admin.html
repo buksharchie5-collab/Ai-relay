@@ -1,1 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>AI Relay admin</title>
+<style>
+  body { margin:0; padding:20px; background:#000; color:#f2f2f2; font:16px/1.5 system-ui, -apple-system, sans-serif; }
+  h1 { font-size:22px; margin:0 0 12px; }
+  p { color:#9a9a9a; font-size:14px; }
+  input { width:100%; padding:12px; font-size:16px; background:#262626; border:1px solid #333; border-radius:10px; color:#f2f2f2; }
+  button { margin-top:10px; width:100%; padding:12px; font-size:16px; font-weight:600; background:#4f7cff; color:#fff; border:0; border-radius:12px; }
+  .card { background:#141414; border:1px solid #262626; border-radius:14px; padding:14px; margin-top:14px; }
+  .big { font-size:28px; font-weight:700; }
+  .row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #222; font-size:15px; }
+  .err { color:#f59e0b; font-size:14px; min-height:20px; }
+</style>
+</head>
+<body>
+<h1>AI Relay admin</h1>
+<p>Paste your admin key. It is sent only to your own server and is not saved on this page.</p>
+<input id="key" type="password" placeholder="Admin key" autocomplete="off" autocapitalize="none" spellcheck="false">
+<button id="load">Load stats</button>
+<p class="err" id="err"></p>
 
+<div id="out" style="display:none">
+  <div class="card">
+    <div>Personal keys created (all time)</div>
+    <div class="big" id="total">-</div>
+    <div style="margin-top:8px">Created today: <b id="today">-</b></div>
+  </div>
+  <div class="card">
+    <div style="margin-bottom:6px">Shared-AI messages today</div>
+    <div id="providers"></div>
+  </div>
+  <div class="card">
+    <div id="storage" style="font-size:14px"></div>
+    <div id="note" style="font-size:13px;color:#9a9a9a;margin-top:6px"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById("load").onclick = async () => {
+  const err = document.getElementById("err");
+  err.textContent = "";
+  const key = document.getElementById("key").value.trim();
+  if (!key) { err.textContent = "Paste your admin key first."; return; }
+  try {
+    const r = await fetch("/api/admin/stats", { headers: { "X-Admin-Key": key } });
+    if (!r.ok) { err.textContent = "Not allowed. Check the admin key."; return; }
+    const d = await r.json();
+    document.getElementById("total").textContent = d.signups.total;
+    document.getElementById("today").textContent = d.signups.today;
+    document.getElementById("providers").innerHTML = Object.entries(d.sharedToday).map(([name, p]) =>
+      `<div class="row"><span>${name}</span><span>${p.configured ? p.used + " of " + p.cap : "no shared key"}</span></div>`).join("");
+    document.getElementById("storage").textContent = "Storage: " + d.storage;
+    document.getElementById("note").textContent = d.sharedCounterNote;
+    document.getElementById("out").style.display = "block";
+  } catch { err.textContent = "Could not reach the server. Try again."; }
+  document.getElementById("key").value = "";
+};
+</script>
+</body>
+</html>
