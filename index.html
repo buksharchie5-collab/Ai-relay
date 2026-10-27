@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="AI Relay is a free AI chat that switches to the next AI when one runs out, so you can keep chatting.">
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<title>AI Relay</title>
+<title>AI Relay: free AI chat that never runs out</title>
 <style>
   :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
   * { box-sizing:border-box; }
@@ -264,11 +265,11 @@
 
 <div id="login" class="off">
   <button id="homeBtn" class="corner-btn" type="button" aria-label="Add AI Relay to your Home Screen">
-    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen
   </button>
 
   <header class="hero">
-    <div class="logo-tile">⇄</div>
+    <div class="logo-tile" aria-hidden="true">⇄</div>
     <h1>AI Relay</h1>
     <p>When one free AI runs out, the next picks up.</p>
   </header>
@@ -311,9 +312,9 @@
 
 <div id="app" class="off">
   <header class="top">
-    <button id="menu" class="icon" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16"/></svg></button>
+    <button id="menu" class="icon" type="button" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h16"/></svg></button>
     <button id="pill" class="pill" type="button" aria-label="AI providers"><span class="dot" id="pdot"></span><span id="ptxt">Loading</span></button>
-    <button id="newchat" class="icon" type="button" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+    <button id="newchat" class="icon" type="button" aria-label="New chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
   </header>
 
   <main id="log"><div class="col" id="col">
@@ -345,7 +346,7 @@
         <button id="plus" class="plusbtn" type="button" aria-label="More options">+</button>
         <button id="mpill" class="mpill" type="button" aria-label="Choose AI"><span id="mtxt">Auto</span><span id="mprov"></span></button>
         <span class="grow"></span>
-        <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
     </div>
   </form>
@@ -353,11 +354,11 @@
   <div id="scrim"></div>
 
   <aside id="side" aria-label="Menu">
-    <div class="shead"><div class="brand"><span class="logo">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <button class="nav" id="sideNew" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
-    <button class="nav" id="sideProfile" type="button"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
-    <button class="nav" id="sideShare" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
-    <button class="nav" id="sideHome" type="button"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
+    <div class="shead"><div class="brand"><span class="logo" aria-hidden="true">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
+    <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
+    <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
+    <button class="nav" id="sideHome" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
     <div class="label">Your chats</div>
     <div id="chatlist"></div>
     <div class="sidefoot"><span id="acctline"></span><button id="sideOut" class="btn ghost small" type="button">Sign out</button></div>
@@ -375,9 +376,9 @@
     <div class="sheetbody">
       <div class="grip"></div>
       <div class="dropcard drop">
-        <button type="button" class="opt" data-att="usage"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="tx"><b>Usage</b><small>Your limits and messages today</small></span><span class="chev">›</span></button>
-        <button type="button" class="opt" data-att="prov"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span><span class="tx"><b>AI providers</b><small>Add keys and choose which AI answers</small></span><span class="chev">›</span></button>
-        <button type="button" class="opt" data-att="share"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev">›</span></button>
+        <button type="button" class="opt" data-att="usage"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="tx"><b>Usage</b><small>Your limits and messages today</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-att="prov"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span><span class="tx"><b>AI providers</b><small>Add keys and choose which AI answers</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-att="share"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-att="cancel">Cancel</button>
     </div>
@@ -442,8 +443,8 @@ const nf = n => n.toLocaleString();
 const getKey = () => localStorage.getItem("freeai-key");
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const SEND_ICON = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
-const STOP_ICON = '<svg class="stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const SEND_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+const STOP_ICON = '<svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 let history = [], chatId = newId(), st = null, busy = false, editing = null, openedAt = 0;
 let abortCtl = null, profile = { name: "", style: "" };
 const testResult = {};
@@ -497,10 +498,8 @@ const INLINE = new RegExp(TICK + "([^" + TICK + "\\n]+)" + TICK, "g");
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"()\[\]]+)/g;
 const TABLE_ASK = /\btables?\b|\bgrid\b|\bcompar|\bvs\.?\b|\bside by side\b/i;
 
-// File extension for each language name, used by Save as file.
 const EXT = { javascript:"js", js:"js", typescript:"ts", ts:"ts", python:"py", py:"py", java:"java", html:"html", css:"css", json:"json", c:"c", cpp:"cpp", "c++":"cpp", csharp:"cs", "c#":"cs", go:"go", rust:"rs", php:"php", ruby:"rb", swift:"swift", kotlin:"kt", sql:"sql", bash:"sh", shell:"sh", sh:"sh", xml:"xml", yaml:"yml", markdown:"md", md:"md" };
 
-// Keep the raw code for each block here, so the buttons can copy or save it.
 const codeStore = [];
 
 function linkRepl(m, label, murl, burl) {
@@ -582,7 +581,6 @@ function textBlock(s, asGrid) {
   flushPara(); flushList(); flushTable();
   return out.join("");
 }
-// A code block gets a header with its language, a Copy button and a Save button.
 function codeBlockHtml(lang, code) {
   const i = codeStore.length;
   codeStore.push({ lang: (lang || "").toLowerCase(), code });
@@ -590,14 +588,13 @@ function codeBlockHtml(lang, code) {
   return `<div class="codeblk" data-code="${i}">
     <div class="codehead"><span class="lang">${esc(label)}</span>
       <span class="cbtns">
-        <button type="button" class="cbtn" data-cact="copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span>Copy</span></button>
-        <button type="button" class="cbtn" data-cact="save"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Save</span></button>
+        <button type="button" class="cbtn" data-cact="copy" aria-label="Copy code"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span>Copy</span></button>
+        <button type="button" class="cbtn" data-cact="save" aria-label="Save code as file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Save</span></button>
       </span>
     </div>
     <pre><code>${esc(code)}</code></pre>
   </div>`;
 }
-// Builds the reply HTML: normal text and code blocks, in order.
 function renderBody(t, asGrid) {
   codeStore.length = 0;
   const parts = t.split(FENCE);
@@ -610,7 +607,6 @@ function renderBody(t, asGrid) {
   return out;
 }
 
-// Copy and Save buttons on code blocks. Event delegation, so it works on every reply.
 col.addEventListener("click", async e => {
   const cb = e.target.closest("[data-cact]");
   if (!cb) return;
