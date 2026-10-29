@@ -53,7 +53,17 @@
   .pop { animation:msgIn .34s var(--ease) both; }
   .appear { animation:pageIn .36s var(--ease) both; }
   .fade-in { animation:fadeIn .3s var(--ease) both; }
-  .bot.thinking .body { animation:breathe 1.3s ease-in-out infinite; }
+  .bot.thinking .body { display:none; animation:none; }
+  .bot .body .codeblk pre code { background:none; padding:0; border-radius:0; box-decoration-break:slice; }
+  .status { display:flex; align-items:center; gap:11px; margin:2px 0 10px; font-size:15.5px; font-weight:500; color:var(--mute); max-height:32px; overflow:hidden; animation:fadeIn .3s var(--ease) both; transition:opacity .4s ease, max-height .4s ease, margin .4s ease; }
+  .status.done { opacity:0; max-height:0; margin:0; }
+  .orb { flex:none; width:10px; height:10px; border-radius:50%; background:radial-gradient(circle at 35% 35%, #9db8ff, var(--accent)); animation:orb 1.5s ease-in-out infinite; }
+  @keyframes orb { 0%,100% { transform:scale(.72); box-shadow:0 0 0 0 rgba(79,124,255,.5); } 50% { transform:scale(1); box-shadow:0 0 0 8px rgba(79,124,255,0); } }
+  .shimmer { background:linear-gradient(90deg, #6f6f6f 0%, #6f6f6f 38%, #fff 50%, #6f6f6f 62%, #6f6f6f 100%); background-size:260% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent; animation:shimmer 1.9s linear infinite; }
+  .shimmer.swap { animation:shimmer 1.9s linear infinite, textIn .35s var(--ease) both; }
+  @keyframes shimmer { from { background-position:130% 0; } to { background-position:-130% 0; } }
+  @keyframes textIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce) { .orb, .shimmer { animation:none; } .shimmer { color:var(--mute); -webkit-text-fill-color:currentColor; background:none; } }
 
   #login { position:relative; min-height:100vh; min-height:100dvh; max-height:100dvh; overflow-y:auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
   .corner-btn { position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px; padding:8px 12px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
@@ -586,6 +596,9 @@ function codeBlockHtml(lang, code) {
 }
 function renderBody(t, asGrid) {
   codeStore.length = 0;
+  // While code is still streaming its closing fence hasn't arrived: close it for display so it shows as a code block, not raw backticks.
+  const fences = t.split(TICK + TICK + TICK).length - 1;
+  if (fences % 2 === 1) t += "\n" + TICK + TICK + TICK;
   const parts = t.split(FENCE);
   let out = "";
   for (let i = 0; i < parts.length; i++) {
@@ -856,6 +869,24 @@ $("f").addEventListener("submit", async e => {
   const bubble = add("bot", "Thinking…", "", history.length, true);
   bubble.classList.add("thinking", "pop");
   bubble.querySelector(".acts2").classList.add("off");
+  const st = document.createElement("div");
+  st.className = "status";
+  st.innerHTML = '<span class="orb"></span><span class="stxt shimmer">Thinking…</span>';
+  const bodyEl = bubble.querySelector(".body");
+  bodyEl.textContent = "";
+  bodyEl.parentNode.insertBefore(st, bodyEl);
+  let statusAt = Date.now(), statusNow = "Thinking…", stage = "thinking", slowA = null, slowB = null, stageT = null;
+  const setStatus = t => {
+    if (t === statusNow) return;
+    statusNow = t; statusAt = Date.now();
+    const el = st.querySelector(".stxt");
+    el.classList.remove("swap"); void el.offsetWidth;
+    el.textContent = t; el.classList.add("swap");
+  };
+  slowA = setTimeout(() => { if (stage === "thinking") setStatus("Still working on it…"); }, 7000);
+  slowB = setTimeout(() => { if (stage === "thinking") setStatus("This one is taking a while, hang tight…"); }, 16000);
+  const PNAME = { groq: "Groq", cerebras: "Cerebras", nvidia: "NVIDIA", mistral: "Mistral", openrouter: "OpenRouter", cloudflare: "Cloudflare" };
+  const nice = p => PNAME[String(p || "").toLowerCase()] || String(p || "the AI");
   pinTo(mine);
   const asGrid = TABLE_ASK.test(text);
 
@@ -865,18 +896,42 @@ $("f").addEventListener("submit", async e => {
   const body = () => bubble.querySelector(".body");
   const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
 
-  const timer = setInterval(() => {
+  let lastDraw = 0, rafId = 0, running = true;
+  const tick = now => {
+    if (!running) return;
+    rafId = requestAnimationFrame(tick);
+    if (now - lastDraw < 32) return;
     const pending = full.length - shown.length;
     if (pending <= 0) return;
-    const step = Math.min(pending, 2 + Math.floor(pending / 50));
+    lastDraw = now;
+    const step = Math.max(1, Math.ceil(pending / 14));
     shown = full.slice(0, shown.length + step);
     body().innerHTML = renderBody(shown, asGrid);
-  }, 30);
-  const flush = () => { clearInterval(timer); shown = full; body().innerHTML = renderBody(full, asGrid); };
+    if (stage === "writing") setStatus(((shown.match(/```/g) || []).length % 2) ? "Writing code…" : "Writing…");
+  };
+  rafId = requestAnimationFrame(tick);
+  const flush = () => {
+    running = false; cancelAnimationFrame(rafId);
+    clearTimeout(slowA); clearTimeout(slowB); clearTimeout(stageT);
+    shown = full; body().innerHTML = renderBody(full, asGrid);
+    st.classList.add("done"); setTimeout(() => st.remove(), 450);
+  };
 
   const onEvent = ev => {
-    if (ev.type === "meta") { meta = ev.provider + " · " + ev.model; showMeta(); }
-    else if (ev.type === "delta") { if (!full) bubble.classList.remove("thinking"); full += ev.text; }
+    if (ev.type === "meta") {
+      meta = ev.provider + " · " + ev.model; showMeta();
+      if (stage === "thinking") { stage = "connected"; setStatus("Asking " + nice(ev.provider) + "…"); }
+    }
+    else if (ev.type === "delta") {
+      if (!full) {
+        bubble.classList.remove("thinking");
+        // keep the "Asking …" line up for a moment so it never flashes by
+        const wait = Math.max(0, 750 - (Date.now() - statusAt));
+        stageT = setTimeout(() => { stage = "writing"; setStatus("Writing…"); }, wait);
+        stage = "connected";
+      }
+      full += ev.text;
+    }
     else if (ev.type === "done") { if (ev.fellBack) meta += " · your pinned choice was unavailable"; showMeta(); }
     else if (ev.type === "error") { errorInfo = ev; }
   };
