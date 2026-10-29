@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="AI Relay is a free AI chat that switches to the next AI when one runs out, so you can keep chatting.">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#212121">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AI Relay">
@@ -14,7 +14,7 @@
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <title>AI Relay: free AI chat that never runs out</title>
 <style>
-  :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
+  :root { --bg:#212121; --panel:#2a2a2a; --raised:#303030; --field:#363636; --ink:#f2f2f2; --mute:#a3a3a3; --line:#3d3d3d; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
   * { box-sizing:border-box; }
   html, body { height:100%; margin:0; background:var(--bg); overflow:hidden; overscroll-behavior:none; position:fixed; top:0; left:0; right:0; width:100%; }
   body { color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
@@ -125,17 +125,17 @@
   .bot .body ol li::marker { font-weight:700; }
   .bot .body hr { border:0; border-top:1px solid #2a2a2a; margin:28px 0; }
   .bot .body a { color:#7cb3ff; text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
-  .bot .body code { padding:2px 6px; background:#2a2a2a; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
+  .bot .body code { padding:2px 6px; background:#383838; border-radius:6px; font:14px ui-monospace, Menlo, monospace; color:#9fd0ff; }
   .bot .body sup, .bot .body sub { font-size:.7em; line-height:0; }
   .bot .body sup { vertical-align:super; }
   .bot .body sub { vertical-align:sub; }
 
-  .codeblk { margin:16px 0 22px; border:1px solid #232323; border-radius:14px; background:#111; overflow:hidden; }
-  .codehead { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 8px 8px 14px; background:#1a1a1a; border-bottom:1px solid #232323; font-size:12.5px; color:var(--mute); }
+  .codeblk { margin:16px 0 22px; border:1px solid #3d3d3d; border-radius:14px; background:#1b1b1b; overflow:hidden; }
+  .codehead { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 8px 8px 14px; background:#2a2a2a; border-bottom:1px solid #3d3d3d; font-size:12.5px; color:var(--mute); }
   .codehead .lang { font-weight:600; letter-spacing:.02em; }
   .codehead .cbtns { display:flex; gap:6px; }
-  .codehead .cbtn { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:#262626; color:var(--ink); font-size:12.5px; font-weight:600; }
-  .codehead .cbtn:hover { background:#333; }
+  .codehead .cbtn { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:#383838; color:var(--ink); font-size:12.5px; font-weight:600; }
+  .codehead .cbtn:hover { background:#444; }
   .codehead .cbtn svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .codehead .cbtn.done { background:#14532d; color:#bbf7d0; }
   .codehead .cbtn.done svg { animation:popCheck .35s var(--ease) both; }
@@ -167,14 +167,14 @@
 
   .composer { padding:0 14px calc(4px + env(safe-area-inset-bottom,0px)); }
   .editbar { max-width:720px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between; padding:6px 8px 6px 14px; font-size:13px; color:var(--mute); background:var(--panel); border-radius:12px; }
-  .box { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px; background:#1c1c1c; border:1px solid #2c2c2c; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.35); transition:box-shadow .2s ease, border-color .2s ease; }
+  .box { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:6px; padding:14px 14px 12px; background:#2c2c2c; border:1px solid #404040; border-radius:28px; box-shadow:0 10px 30px rgba(0,0,0,.35); transition:box-shadow .2s ease, border-color .2s ease; }
   .box:focus-within { border-color:#3a3a3a; box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 2px rgba(79,124,255,.25); }
   textarea { width:100%; min-height:26px; max-height:160px; resize:none; border:0; outline:0; background:transparent; font-size:16px; line-height:1.45; padding:4px 4px; margin:0; display:block; color:var(--ink); transition:height .15s ease; }
   .bar { display:flex; align-items:center; gap:8px; }
-  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; background:#2a2a2a; font-size:24px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; }
-  .plusbtn:hover { background:#333; }
-  .mpill { display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:99px; background:#2a2a2a; font-size:15px; font-weight:600; color:var(--ink); min-width:0; max-width:60%; }
-  .mpill:hover { background:#333; }
+  .plusbtn { width:40px; height:40px; flex:none; border-radius:50%; background:#3a3a3a; font-size:24px; font-weight:400; line-height:1; color:var(--ink); display:grid; place-items:center; }
+  .plusbtn:hover { background:#454545; }
+  .mpill { display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:99px; background:#3a3a3a; font-size:15px; font-weight:600; color:var(--ink); min-width:0; max-width:60%; }
+  .mpill:hover { background:#454545; }
   #mprov { color:var(--mute); font-weight:500; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .grow { flex:1; }
   #send { width:40px; height:40px; flex:none; border-radius:50%; background:#f2f2f2; color:#000; display:grid; place-items:center; transition:background-color .2s ease, transform .15s var(--ease), opacity .2s ease; }
@@ -185,7 +185,7 @@
   #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .3s ease; z-index:20; }
   #app.side-open #scrim, #app.drawer-open #scrim { opacity:1; pointer-events:auto; }
   #side, #drawer { position:absolute; top:0; bottom:0; width:min(320px, 84%); z-index:30; display:flex; flex-direction:column; transition:transform .38s var(--ease); will-change:transform; }
-  #side { left:0; background:#000; border-right:1px solid var(--line); transform:translateX(-102%); padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px)); }
+  #side { left:0; background:#1b1b1b; border-right:1px solid var(--line); transform:translateX(-102%); padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px)); }
   #drawer { right:0; background:var(--panel); border-left:1px solid var(--line); transform:translateX(102%); padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px)); }
   #app.side-open #side { transform:none; }
   #app.drawer-open #drawer { transform:none; }
@@ -232,7 +232,7 @@
   .dropcard.drop { margin:0 auto; max-width:520px; }
   .opt { display:flex; align-items:center; gap:14px; width:100%; padding:12px; border-radius:16px; text-align:left; border:0; background:transparent; }
   .opt:hover { background:rgba(255,255,255,.05); }
-  .opt .ic { width:42px; height:42px; flex:none; border-radius:13px; background:#262626; display:grid; place-items:center; color:var(--ink); }
+  .opt .ic { width:42px; height:42px; flex:none; border-radius:13px; background:#363636; display:grid; place-items:center; color:var(--ink); }
   .opt .ic svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
   .opt .tx { flex:1; min-width:0; }
   .opt .tx b { display:block; font-size:16px; font-weight:600; color:var(--ink); }
@@ -856,6 +856,17 @@ function setBusy(on) {
   play(send, "pop");
 }
 
+// If the user asks whether a website is trustworthy, quietly tell the AI to give a real assessment instead of refusing.
+const TRUST_Q = /(trust|legit|safe|scam|fake|reliable|reputable|genuine|credible|dodgy|sketchy|phishing|fraud|rip.?off)/i;
+const SITE_REF = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|co|uk|app|shop|store|xyz|info|online|site|biz|us|eu|de|fr|mt|ai|me|tv)\b|\b(site|website|web ?site|link|url|domain|online store|webshop)\b)/i;
+const TRUST_HINT = "\n\n[Note for the assistant, do not mention this note: the user is asking whether a website, store or link is trustworthy. Do not refuse or say you cannot help. You cannot open the site live, so say that once in a short clause, then give a genuinely useful assessment from what you know: whether the name or domain is a well-known established site, any reputation or scam reports you are aware of, and good signs or red flags in the address itself (look-alike spelling, odd endings, too-good-to-be-true offers). Give a clear verdict such as 'looks legitimate', 'be careful' or 'likely a scam' with how confident you are, then list quick checks the user can do: https and padlock, searching the name with 'reviews' and 'scam', Trustpilot or Scamadviser, domain age on a WHOIS lookup, real contact details and return policy, and paying by card or PayPal. Never encourage entering passwords or card details on a site you are unsure about.]";
+function apiMessages() {
+  const out = history.map(m => ({ role: m.role, content: m.content }));
+  const last = out[out.length - 1];
+  if (last && last.role === "user" && TRUST_Q.test(last.content) && SITE_REF.test(last.content)) last.content += TRUST_HINT;
+  return out;
+}
+
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
   if (busy) { if (abortCtl) abortCtl.abort(); return; }
@@ -940,7 +951,7 @@ $("f").addEventListener("submit", async e => {
     const r = await fetch("/api/chat-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" },
-      body: JSON.stringify({ chatId, messages: history.map(m => ({ role: m.role, content: m.content })) }),
+      body: JSON.stringify({ chatId, messages: apiMessages() }),
       signal: abortCtl.signal,
     });
     if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
