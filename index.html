@@ -16,7 +16,7 @@
 <style>
   :root { --bg:#000; --panel:#141414; --raised:#1f1f1f; --field:#262626; --ink:#f2f2f2; --mute:#9a9a9a; --line:#262626; --accent:#4f7cff; --accent-2:#38bdf8; --accent-ink:#fff; --ok:#22c55e; --warn:#f59e0b; --off:#555; --ease:cubic-bezier(.22,.8,.2,1); color-scheme:dark; }
   * { box-sizing:border-box; }
-  html, body { height:100%; margin:0; background:var(--bg); overflow-x:hidden; }
+  html, body { height:100%; margin:0; background:var(--bg); overflow:hidden; overscroll-behavior:none; position:fixed; top:0; left:0; right:0; width:100%; }
   body { color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
   button, input, textarea { font:inherit; color:inherit; }
   button { cursor:pointer; background:none; border:0; padding:0; transition:background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease, transform .15s var(--ease); -webkit-tap-highlight-color:transparent; }
@@ -55,7 +55,7 @@
   .fade-in { animation:fadeIn .3s var(--ease) both; }
   .bot.thinking .body { animation:breathe 1.3s ease-in-out infinite; }
 
-  #login { position:relative; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
+  #login { position:relative; min-height:100vh; min-height:100dvh; max-height:100dvh; overflow-y:auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px)); }
   .corner-btn { position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px; padding:8px 12px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
   .corner-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
   .hero { width:100%; max-width:440px; text-align:center; }
@@ -982,6 +982,18 @@ $("enter").onclick = async () => {
 
 if (getKey()) { show(true); refresh(); loadChats(); } else show(false);
 setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
+
+// Stop the whole page rubber-banding in the home-screen app: only allow touch-scrolling inside things that really scroll.
+document.addEventListener("touchmove", e => {
+  if (e.touches.length > 1) return;
+  for (let n = e.target; n && n !== document.body; n = n.parentElement) {
+    if (!(n instanceof Element)) continue;
+    const cs = getComputedStyle(n);
+    if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1) return;
+    if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 1) return;
+  }
+  e.preventDefault();
+}, { passive: false });
 </script>
 </body>
 </html>
