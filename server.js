@@ -10,6 +10,23 @@ const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_REDIS = !!(UP_URL && UP_TOKEN);
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
+// Cloudflare Turnstile: checks that a sign-up comes from a real person.
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY || "";
+async function turnstileOk(token, ip) {
+  if (!TURNSTILE_SECRET) return true; // not set yet, so sign-up works as before
+  if (!token) return false;
+  try {
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token).slice(0, 2048), remoteip: ip || "" }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const j = await r.json();
+    return !!j.success;
+  } catch { return false; }
+}
+
 const DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 fs.mkdirSync(DIR, { recursive: true });
 if (!USE_REDIS) console.log("Note: no Upstash set, so accounts and chats are not kept between deploys on Render's free plan.");
@@ -617,6 +634,8 @@ async function route(req, res) {
   if (req.url === "/api/signup" && req.method === "POST") {
     const device = String(body.device || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
     if (!device) return send(res, 400, { error: "Could not identify this device. Reload the page and tap Create my key again." });
+    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (!(await turnstileOk(body.turnstile, ip))) return send(res, 400, { error: "Please complete the check and try again." });
     const count = await bumpDeviceCountToday(device);
     if (count > MAX_KEYS_PER_DEVICE_PER_DAY) {
       return send(res, 429, { error: resetMessage() });
