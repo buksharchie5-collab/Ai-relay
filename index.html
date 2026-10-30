@@ -258,6 +258,27 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
   }
+
+  /* Wide screens (laptops and desktops): keep a centred reading column and scale things up. */
+  .col { max-width:760px; }
+  .box, .editbar { max-width:760px; }
+  @media (min-width:900px) {
+    .top { padding:calc(16px + env(safe-area-inset-top,0px)) 24px 12px; }
+    .pill { font-size:15px; padding:10px 18px; }
+    #log { padding:24px 28px 32px; }
+    .col { gap:36px; }
+    #empty { padding-top:6vh; }
+    #empty h2 { font-size:38px; margin-bottom:24px; }
+    .setup { padding:22px 26px; border-radius:18px; }
+    .setup ol { font-size:15.5px; }
+    .sugg button { font-size:17.5px; padding:17px 4px; }
+    .bot .body { font-size:17.5px; line-height:1.8; }
+    .me .mtxt { font-size:17px; padding:12px 20px; }
+    .composer { padding:0 28px 26px; }
+    .box { padding:18px 20px 14px; border-radius:30px; }
+    #q { font-size:17px; }
+    .codeblk pre { font-size:14.5px; }
+  }
 </style>
 </head>
 <body>
