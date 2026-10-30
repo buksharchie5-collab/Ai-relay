@@ -287,6 +287,12 @@
     #q { font-size:17px; }
     .codeblk pre { font-size:14.5px; }
   }
+  .citem { max-height:64px; }
+  .citem.gone { opacity:0; max-height:0; transform:translateX(-14px); overflow:hidden; transition:opacity .2s ease, max-height .23s ease, transform .2s ease; }
+  #undoToast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translate(-50%,20px); opacity:0; pointer-events:none; display:flex; align-items:center; gap:14px; padding:10px 12px 10px 20px; background:#f2f2f2; color:#111; border-radius:99px; font-size:14.5px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:200; transition:opacity .25s ease, transform .25s var(--ease); }
+  #undoToast.show { opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+  #undoToast button { color:#2563eb; font-weight:700; padding:6px 12px; border-radius:99px; }
+  #undoToast button:hover { background:rgba(0,0,0,.06); }
 </style>
 </head>
 <body>
@@ -786,10 +792,28 @@ $("attach").addEventListener("click", e => {
   closeSheets();
 });
 
+const pendingDel = new Map();
+function sendDelete(id) {
+  return fetch("/api/chats/delete", { method: "POST", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: JSON.stringify({ id }), keepalive: true }).catch(() => {});
+}
+function flushDeletes() { for (const [id, p] of pendingDel) { clearTimeout(p.timer); sendDelete(id); } pendingDel.clear(); }
+addEventListener("pagehide", flushDeletes);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushDeletes(); });
+function showUndo(id) {
+  let t = $("undoToast");
+  if (!t) { t = document.createElement("div"); t.id = "undoToast"; t.setAttribute("role", "status"); t.innerHTML = '<span>Chat deleted</span><button type="button">Undo</button>'; document.body.appendChild(t); }
+  t.querySelector("button").onclick = () => {
+    const p = pendingDel.get(id);
+    if (p) { clearTimeout(p.timer); pendingDel.delete(id); }
+    t.classList.remove("show"); loadChats();
+  };
+  void t.offsetWidth; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 5000);
+}
 async function loadChats() {
   if (!getKey()) return;
   try {
-    const list = await api("/api/chats");
+    const list = (await api("/api/chats")).filter(c => !pendingDel.has(c.id));
     $("chatlist").innerHTML = list.length
       ? list.map(c => `<div class="citem ${c.id === chatId ? "cur" : ""}"><button class="t" type="button" data-open="${esc(c.id)}">${c.pinned ? "★ " : ""}${esc(c.title)}</button><button class="ib" type="button" data-share="${esc(c.id)}">Share</button><button class="ib" type="button" data-pin="${c.pinned ? "0" : "1"}" data-id="${esc(c.id)}">${c.pinned ? "Unpin" : "Pin"}</button><button class="x" type="button" data-del="${esc(c.id)}" aria-label="Delete chat">×</button></div>`).join("")
       : `<div class="nochat">Your chats will appear here.</div>`;
@@ -802,9 +826,14 @@ $("chatlist").addEventListener("click", async e => {
     if (d.open) return openChat(d.open);
     if (d.share) return shareSaved(d.share);
     if (d.del) {
-      if (!confirm("Delete this chat?")) return;
-      await api("/api/chats/delete", { id: d.del });
-      if (d.del === chatId) { history = []; chatId = newId(); redraw(false); }
+      // Instant delete with a 5 second Undo instead of the browser's pop-up question.
+      const id = d.del, row = b.closest(".citem");
+      pendingDel.set(id, { timer: setTimeout(() => { pendingDel.delete(id); sendDelete(id); }, 5000) });
+      if (id === chatId) { history = []; chatId = newId(); redraw(false); }
+      if (row) { row.classList.add("gone"); setTimeout(() => row.remove(), 230); }
+      showUndo(id);
+      setTimeout(loadChats, 260);
+      return;
     }
     else if (d.pin) { await api("/api/chats/pin", { id: d.id, pinned: d.pin === "1" }); }
   } catch {}
