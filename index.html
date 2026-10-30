@@ -462,6 +462,7 @@
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
     <button class="nav" id="sideHome" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
+    <button class="nav" id="sideDevice" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span>Sign in on another device</button>
     <button class="nav" id="sideTheme" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span id="themeLbl">Light mode</span></button>
     <div class="label">Your chats</div>
     <input id="chatSearch" class="csearch off" type="search" placeholder="Search chats" aria-label="Search chats" autocomplete="off">
@@ -487,6 +488,35 @@
         <button type="button" class="opt" data-att="share"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-att="cancel">Cancel</button>
+    </div>
+  </div>
+
+  <div id="xsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Share or export this chat</div>
+      <div class="dropcard drop">
+        <button type="button" class="opt" data-x="send"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Send or copy</b><small>Share the chat as text</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-x="md"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span class="tx"><b>Download as a text file</b><small>Saves a .md file you can open anywhere</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-x="pdf"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 13h6M9 17h6"/></svg></span><span class="tx"><b>Print or save as PDF</b><small>Opens the print window; choose Save as PDF</small></span><span class="chev" aria-hidden="true">›</span></button>
+      </div>
+      <button type="button" class="cancelbtn" data-close>Cancel</button>
+    </div>
+  </div>
+
+  <div id="dsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Sign in on another device</div>
+      <div class="guide">
+        <p>Send yourself a link. Open it on your other phone or computer and it signs in automatically.</p>
+        <div class="tip"><b>Careful:</b> anyone who has this link can use your account. Send it only to yourself, then delete the message.</div>
+      </div>
+      <button id="devShare" class="btn block" type="button" style="margin-top:12px">Send link</button>
+      <button id="devCopy" class="btn ghost block" type="button" style="margin-top:8px">Copy link</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Done</button>
     </div>
   </div>
 
@@ -861,7 +891,65 @@ async function shareSaved(id) {
     shareText(c.title || "AI Relay chat", transcriptOf(c.messages));
   } catch { toast("Could not share this chat."); }
 }
-$("sideShare").onclick = () => { closeAll(); shareChat(); };
+$("sideShare").onclick = () => {
+  if (!history.length) { toast("Start a chat first, then you can share it."); return; }
+  openSheetEl("xsheet");
+};
+function chatTitle() {
+  const u = history.find(m => m.role === "user");
+  const t = u ? (splitFile(u.content) || { text: String(u.content) }).text : "chat";
+  return t.replace(/\s+/g, " ").trim().slice(0, 60) || "chat";
+}
+function chatMarkdown() {
+  const day = new Date().toISOString().slice(0, 10);
+  const parts = history.map(m => {
+    if (m.role === "user") { const sf = splitFile(m.content); return "**You:** " + (sf ? sf.text + "\n\n[Attached file: " + sf.name + "]" : m.content); }
+    return "**AI Relay:** " + m.content;
+  });
+  return "# " + chatTitle() + "\n\n_AI Relay chat, " + day + "_\n\n" + parts.join("\n\n---\n\n") + "\n";
+}
+function downloadChat() {
+  const blob = new Blob([chatMarkdown()], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const slug = chatTitle().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "chat";
+  a.href = url; a.download = "ai-relay-" + slug + ".md";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  toast("Chat downloaded.");
+}
+function printChat() {
+  const rows = history.map(m => {
+    const sf = m.role === "user" ? splitFile(m.content) : null;
+    const txt = sf ? sf.text + "\n[Attached file: " + sf.name + "]" : String(m.content);
+    return '<div class="m ' + (m.role === "user" ? "u" : "a") + '"><div class="who">' + (m.role === "user" ? "You" : "AI Relay") + "</div><div>" + esc(txt) + "</div></div>";
+  }).join("");
+  const html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(chatTitle()) + '</title><style>body{font:15px/1.6 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:#111;margin:32px auto;max-width:720px;padding:0 20px}h1{font-size:20px;margin:0 0 20px}.m{margin:0 0 18px;white-space:pre-wrap;overflow-wrap:anywhere}.who{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#666;margin-bottom:4px}.u{background:#f1f1f3;padding:10px 14px;border-radius:12px}</style></head><body><h1>' + esc(chatTitle()) + "</h1>" + rows + "</body></html>";
+  const fr = document.createElement("iframe");
+  fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(fr);
+  const d = fr.contentDocument; d.open(); d.write(html); d.close();
+  setTimeout(() => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch { toast("Could not open the print window."); } setTimeout(() => fr.remove(), 2000); }, 300);
+}
+$("xsheet").addEventListener("click", e => {
+  const b = e.target.closest("[data-x]"); if (!b || recentlyOpened()) return;
+  closeSheets();
+  if (b.dataset.x === "send") shareChat();
+  else if (b.dataset.x === "md") downloadChat();
+  else if (b.dataset.x === "pdf") printChat();
+});
+
+// Sign in on another device: a link that carries the key in the part after "#", which is never sent to any server.
+const deviceLink = () => location.origin + "/#key=" + (getKey() || "");
+$("sideDevice").onclick = () => { if (!getKey()) return; openSheetEl("dsheet"); };
+$("devShare").onclick = async () => {
+  const url = deviceLink();
+  if (navigator.share) { try { await navigator.share({ title: "AI Relay sign-in", url }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(url); toast("Link copied. Open it on your other device."); } catch { toast("Could not share the link."); }
+};
+$("devCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(deviceLink()); toast("Link copied. Send it only to yourself."); } catch { toast("Could not copy the link."); }
+};
 $("sideKey").onclick = async () => {
   const k = getKey(); if (!k) return;
   const b = $("sideKey");
@@ -1316,7 +1404,15 @@ $("enter").onclick = async () => {
   catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
 };
 
-if (getKey()) { show(true); refresh(); loadChats(); } else show(false);
+let linkedIn = false;
+{
+  const lm = /^#key=(fa-[\w.=\-]+)$/.exec(location.hash);
+  if (lm) {
+    try { localStorage.setItem("freeai-key", lm[1]); linkedIn = true; } catch {}
+    window.history.replaceState(null, "", location.pathname + location.search);
+  }
+}
+if (getKey()) { show(true); refresh(); loadChats(); if (linkedIn) setTimeout(() => toast("Signed in on this device."), 600); } else show(false);
 setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
 
 // Jump to latest
