@@ -263,6 +263,14 @@
   .col { max-width:760px; }
   .box, .editbar { max-width:760px; }
   @media (min-width:900px) {
+    /* lighter grey on computers: the same grey looks much darker on a laptop screen than on a phone */
+    :root { --bg:#303030; --panel:#3a3a3a; --raised:#404040; --field:#464646; --line:#515151; }
+    .box { background:#3c3c3c; border-color:#555; }
+    .codeblk { background:#262626; border-color:#515151; }
+    .codehead { background:#363636; border-bottom-color:#515151; }
+    .codehead .cbtn, .plusbtn, .mpill, .bot .body code { background:#464646; }
+    .codehead .cbtn:hover, .plusbtn:hover, .mpill:hover { background:#505050; }
+    #side { background:#2a2a2a; }
     .top { padding:calc(16px + env(safe-area-inset-top,0px)) 24px 12px; }
     .pill { font-size:15px; padding:10px 18px; }
     #log { padding:24px 28px 32px; }
