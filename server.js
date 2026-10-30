@@ -109,24 +109,31 @@ function pngChunk(type, data) {
   return Buffer.concat([len, td, crc]);
 }
 function makeIcon(size) {
+  // The sparkle logo: a four-point star on a dark tile. Drawn per pixel (smoothed).
   const stride = size * 3 + 1;
   const raw = Buffer.alloc(stride * size);
-  const ly1 = size * 0.38, ly2 = size * 0.62, th = size * 0.07;
-  const x0 = size * 0.24, x1 = size * 0.76, hw = size * 0.12;
+  const k = 120 / size, SS = 3;
+  const segDist = (px, py, ax, ay, bx, by) => {
+    const dx = bx - ax, dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  };
   for (let y = 0; y < size; y++) {
     raw[y * stride] = 0;
     for (let x = 0; x < size; x++) {
-      const t = (x + y) / (2 * size);
-      let r = 37 + (56 - 37) * t, g = 99 + (189 - 99) * t, b = 235 + (248 - 235) * t;
-      let white = false;
-      if (x >= x0 && x <= x1 && Math.abs(y - ly1) <= th / 2) white = true;
-      if (x >= x1 - hw && x <= x1 && Math.abs(y - ly1) <= (x1 - x)) white = true;
-      if (x >= x0 && x <= x1 && Math.abs(y - ly2) <= th / 2) white = true;
-      if (x >= x0 && x <= x0 + hw && Math.abs(y - ly2) <= (x - x0)) white = true;
-      const i = y * stride + 1 + x * 3;
-      raw[i] = white ? 255 : r;
-      raw[i + 1] = white ? 255 : g;
-      raw[i + 2] = white ? 255 : b;
+      let R = 0, G = 0, B = 0;
+      for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
+        const px = (x + (sx + 0.5) / SS) * k, py = (y + (sy + 0.5) / SS) * k;
+        let r = 15, g = 23, b = 42;
+        const dx = Math.abs(px - 60) / 38, dy = Math.abs(py - 60) / 38;
+        if (Math.pow(dx, 0.66) + Math.pow(dy, 0.66) <= 1) {
+          const t = Math.max(0, Math.min(1, (px + py - 40) / 160));
+          r = 96 + (192 - 96) * t; g = 165 + (132 - 165) * t; b = 250 + (252 - 250) * t;
+        }
+        R += r; G += g; B += b;
+      }
+      const i = y * stride + 1 + x * 3, n = SS * SS;
+      raw[i] = Math.round(R / n); raw[i + 1] = Math.round(G / n); raw[i + 2] = Math.round(B / n);
     }
   }
   const ihdr = Buffer.alloc(13);
