@@ -240,6 +240,8 @@
   .opt .tx small { display:block; font-size:13px; color:var(--mute); margin-top:1px; }
   .opt .chev { color:#555; font-size:20px; flex:none; }
   .cancelbtn { width:100%; margin:0 auto; padding:15px; border-radius:18px; background:var(--raised); border:1px solid var(--line); font-size:16px; font-weight:600; color:var(--ink); text-align:center; }
+  .sheetbody .cancelbtn { margin-top:14px; display:block; }
+  .sheetbody .dropcard.drop { margin-bottom:0; }
   .usebody { max-height:60vh; overflow-y:auto; padding:4px 2px; }
   .urow { padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
   .urow b { display:block; font-size:15px; }
@@ -544,7 +546,7 @@
       <button id="linkShare" class="btn block" type="button" style="margin-top:12px">Send link</button>
       <button id="linkCopy" class="btn ghost block" type="button" style="margin-top:8px">Copy link</button>
       <button id="linkStop" class="btn ghost block" type="button" style="margin-top:8px">Stop sharing</button>
-      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Done</button>
+      <button type="button" class="cancelbtn" data-close>Done</button>
     </div>
   </div>
 
@@ -559,7 +561,7 @@
       </div>
       <button id="devShare" class="btn block" type="button" style="margin-top:12px">Send link</button>
       <button id="devCopy" class="btn ghost block" type="button" style="margin-top:8px">Copy link</button>
-      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Done</button>
+      <button type="button" class="cancelbtn" data-close>Done</button>
     </div>
   </div>
 
@@ -584,7 +586,7 @@
         <p class="hint">The AI uses this in every reply. Only you can see it.</p>
       </div>
       <button id="pSave" class="btn block" type="button">Save</button>
-      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Cancel</button>
+      <button type="button" class="cancelbtn" data-close>Cancel</button>
     </div>
   </div>
 
