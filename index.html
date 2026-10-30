@@ -309,6 +309,15 @@
   .filechip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .filechip button { width:22px; height:22px; flex:none; border-radius:50%; color:var(--mute); font-size:16px; line-height:1; }
   .filechip button:hover { color:var(--ink); background:rgba(127,127,127,.25); }
+  .acts2 button.on { color:var(--ink); font-weight:700; }
+  .reasons { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .reasons button { padding:5px 12px; border-radius:99px; background:var(--field); color:var(--mute); font-size:13px; }
+  .reasons button:hover { color:var(--ink); }
+  .webbtn { width:40px; height:40px; flex:none; border-radius:50%; display:grid; place-items:center; color:var(--mute); transition:background-color .2s ease, color .2s ease; }
+  .webbtn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .webbtn:hover { color:var(--ink); background:var(--field); }
+  .webbtn.on { color:#fff; background:#3b82f6; }
+  .linkbox { margin:12px 0 0; padding:12px 14px; background:var(--field); border-radius:12px; font-size:14px; word-break:break-all; user-select:all; }
   .fpill { display:inline-block; margin-top:8px; padding:4px 10px; background:rgba(127,127,127,.28); border-radius:99px; font-size:13px; font-weight:600; }
   .csearch { display:block; width:calc(100% - 8px); margin:0 4px 8px; padding:9px 12px; background:var(--field); border:1px solid var(--line); border-radius:10px; font-size:14.5px; }
   .noteacts { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
@@ -390,6 +399,8 @@
     </div>
   </section>
 
+  <p style="text-align:center;margin:18px 0 0;font-size:14px"><a href="/blog" style="color:var(--mute)">Read the AI Relay blog</a></p>
+
   <section class="panel off" id="made">
     <h2>Save your key</h2>
     <p class="sub">Keep this somewhere safe, like a password manager. It cannot be recovered if you lose it.</p>
@@ -439,6 +450,7 @@
 
   <form id="f" class="composer">
     <button id="jump" type="button" aria-label="Jump to latest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
+    <input id="imgIn" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/*" hidden>
     <input id="fileIn" type="file" accept=".txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.sh,.xml,.yml,.yaml,.log,.ini,.toml,text/*" hidden>
     <div id="editbar" class="editbar off"><span>Editing message</span><button type="button" id="editcancel" class="btn ghost small">Cancel</button></div>
     <div class="box">
@@ -448,6 +460,7 @@
         <button id="plus" class="plusbtn" type="button" aria-label="More options">+</button>
         <button id="mpill" class="mpill" type="button" aria-label="Choose AI"><span id="mtxt">Auto</span><span id="mprov"></span></button>
         <span class="grow"></span>
+        <button id="webbtn" class="webbtn off" type="button" aria-label="Search the web for this message" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg></button>
         <button id="mic" class="micbtn" type="button" aria-label="Speak your message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="send" type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
@@ -461,6 +474,8 @@
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
+    <button class="nav" id="sideLink" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span>Link &amp; export</button>
+    <a class="nav" id="sideBlog" href="/blog"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>Blog</a>
     <button class="nav" id="sideHome" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
     <button class="nav" id="sideDevice" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span>Sign in on another device</button>
     <button class="nav" id="sideTheme" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span id="themeLbl">Light mode</span></button>
@@ -483,6 +498,7 @@
       <div class="grip"></div>
       <div class="dropcard drop">
         <button type="button" class="opt" data-att="file"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3"/></svg></span><span class="tx"><b>Attach a text file</b><small>Notes, code, CSV and similar. Not pictures yet</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-att="img"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg></span><span class="tx"><b>Add a picture</b><small>Ask about a photo or screenshot</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" data-att="usage"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="tx"><b>Usage</b><small>Your limits and messages today</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" data-att="prov"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span><span class="tx"><b>AI providers</b><small>Add keys and choose which AI answers</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" data-att="share"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Share chat</b><small>Send this conversation to someone</small></span><span class="chev" aria-hidden="true">›</span></button>
@@ -495,13 +511,29 @@
     <div class="bg" data-close></div>
     <div class="sheetbody">
       <div class="grip"></div>
-      <div class="sheettitle">Share or export this chat</div>
+      <div class="sheettitle">Link or export this chat</div>
       <div class="dropcard drop">
-        <button type="button" class="opt" data-x="send"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span><span class="tx"><b>Send or copy</b><small>Share the chat as text</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" data-x="link"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><span class="tx"><b>Make a public link</b><small>Anyone with the link can read this chat</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" data-x="md"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span class="tx"><b>Download as a text file</b><small>Saves a .md file you can open anywhere</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" data-x="pdf"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 13h6M9 17h6"/></svg></span><span class="tx"><b>Print or save as PDF</b><small>Opens the print window; choose Save as PDF</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-close>Cancel</button>
+    </div>
+  </div>
+
+  <div id="lsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Your public link</div>
+      <div class="guide">
+        <p>Anyone who has this link can read this chat. They can't write in it. Attached files are left out, and pictures are never saved.</p>
+      </div>
+      <div id="linkUrl" class="linkbox"></div>
+      <button id="linkShare" class="btn block" type="button" style="margin-top:12px">Send link</button>
+      <button id="linkCopy" class="btn ghost block" type="button" style="margin-top:8px">Copy link</button>
+      <button id="linkStop" class="btn ghost block" type="button" style="margin-top:8px">Stop sharing</button>
+      <button type="button" class="cancelbtn" data-close style="margin-top:10px">Done</button>
     </div>
   </div>
 
@@ -602,12 +634,19 @@ function toast(text, label, fn, ms) {
 
 // Text files attached to a message are stored inside the message so they survive reloads and are always sent to the AI.
 const FILE_RE = /\n\n\[Attached file: ([^\]\n]+)\]\n--- file start ---\n([\s\S]*)\n--- file end ---$/;
-const splitFile = c => { const m = FILE_RE.exec(String(c)); return m ? { text: String(c).slice(0, m.index), name: m[1], body: m[2] } : null; };
+const IMG_RE = /\n\n\[Attached picture: ([^\]\n]+)\]$/;
+const splitFile = c => {
+  const m = FILE_RE.exec(String(c));
+  if (m) return { text: String(c).slice(0, m.index), name: m[1], body: m[2] };
+  const p = IMG_RE.exec(String(c));
+  return p ? { text: String(c).slice(0, p.index), name: p[1], body: "", image: true } : null;
+};
 const withFile = (text, f) => f ? text + "\n\n[Attached file: " + f.name + "]\n--- file start ---\n" + f.body + "\n--- file end ---" : text;
-let pendingFile = null;
+let pendingFile = null, pendingImage = null;
 function showChip() {
-  $("fileChip").classList.toggle("off", !pendingFile);
-  if (pendingFile) $("fileName").textContent = pendingFile.name;
+  const p = pendingFile || pendingImage;
+  $("fileChip").classList.toggle("off", !p);
+  if (p) $("fileName").textContent = (pendingImage && !pendingFile ? "Picture: " : "") + p.name;
 }
 
 async function api(path, body) {
@@ -637,6 +676,7 @@ async function refresh() {
   try {
     st = await api("/api/status");
     if (st.profile) profile = st.profile;
+    paintWeb();
     updateGreeting();
     render();
   } catch {}
@@ -891,9 +931,27 @@ async function shareSaved(id) {
     shareText(c.title || "AI Relay chat", transcriptOf(c.messages));
   } catch { toast("Could not share this chat."); }
 }
-$("sideShare").onclick = () => {
-  if (!history.length) { toast("Start a chat first, then you can share it."); return; }
+$("sideShare").onclick = () => { closeAll(); shareChat(); };
+$("sideLink").onclick = () => {
+  if (!history.length) { toast("Start a chat first."); return; }
   openSheetEl("xsheet");
+};
+let linkNow = "";
+async function makeLink() {
+  try {
+    await api("/api/chats/sync", { id: chatId, messages: history.map(({ role, content, meta }) => ({ role, content, meta })) });
+    const r = await api("/api/share", { id: chatId });
+    if (!r || r.error) { toast(r && r.error ? r.error : "Could not make a link."); return; }
+    linkNow = r.url; $("linkUrl").textContent = r.url; openSheetEl("lsheet");
+  } catch { toast("Could not make a link."); }
+}
+$("linkShare").onclick = async () => {
+  if (navigator.share) { try { await navigator.share({ title: "AI Relay chat", url: linkNow }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(linkNow); toast("Link copied."); } catch { toast("Could not share the link."); }
+};
+$("linkCopy").onclick = async () => { try { await navigator.clipboard.writeText(linkNow); toast("Link copied."); } catch { toast("Could not copy the link."); } };
+$("linkStop").onclick = async () => {
+  try { await api("/api/share/delete", { id: chatId }); closeSheets(); toast("Link turned off. It no longer works."); } catch { toast("Could not turn it off."); }
 };
 function chatTitle() {
   const u = history.find(m => m.role === "user");
@@ -903,7 +961,7 @@ function chatTitle() {
 function chatMarkdown() {
   const day = new Date().toISOString().slice(0, 10);
   const parts = history.map(m => {
-    if (m.role === "user") { const sf = splitFile(m.content); return "**You:** " + (sf ? sf.text + "\n\n[Attached file: " + sf.name + "]" : m.content); }
+    if (m.role === "user") { const sf = splitFile(m.content); return "**You:** " + (sf ? sf.text + "\n\n[Attached " + (sf.image ? "picture" : "file") + ": " + sf.name + "]" : m.content); }
     return "**AI Relay:** " + m.content;
   });
   return "# " + chatTitle() + "\n\n_AI Relay chat, " + day + "_\n\n" + parts.join("\n\n---\n\n") + "\n";
@@ -921,7 +979,7 @@ function downloadChat() {
 function printChat() {
   const rows = history.map(m => {
     const sf = m.role === "user" ? splitFile(m.content) : null;
-    const txt = sf ? sf.text + "\n[Attached file: " + sf.name + "]" : String(m.content);
+    const txt = sf ? sf.text + "\n[Attached " + (sf.image ? "picture" : "file") + ": " + sf.name + "]" : String(m.content);
     return '<div class="m ' + (m.role === "user" ? "u" : "a") + '"><div class="who">' + (m.role === "user" ? "You" : "AI Relay") + "</div><div>" + esc(txt) + "</div></div>";
   }).join("");
   const html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(chatTitle()) + '</title><style>body{font:15px/1.6 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:#111;margin:32px auto;max-width:720px;padding:0 20px}h1{font-size:20px;margin:0 0 20px}.m{margin:0 0 18px;white-space:pre-wrap;overflow-wrap:anywhere}.who{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#666;margin-bottom:4px}.u{background:#f1f1f3;padding:10px 14px;border-radius:12px}</style></head><body><h1>' + esc(chatTitle()) + "</h1>" + rows + "</body></html>";
@@ -934,7 +992,7 @@ function printChat() {
 $("xsheet").addEventListener("click", e => {
   const b = e.target.closest("[data-x]"); if (!b || recentlyOpened()) return;
   closeSheets();
-  if (b.dataset.x === "send") shareChat();
+  if (b.dataset.x === "link") makeLink();
   else if (b.dataset.x === "md") downloadChat();
   else if (b.dataset.x === "pdf") printChat();
 });
@@ -976,7 +1034,7 @@ $("plus").onclick = () => openSheetEl("attach");
 $("fileIn").addEventListener("change", async () => {
   const f = $("fileIn").files[0]; $("fileIn").value = "";
   if (!f) return;
-  if (/^image\//.test(f.type) || /\.(png|jpe?g|gif|webp|heic|pdf|zip|docx?|xlsx?)$/i.test(f.name)) { toast("Only text files for now, not pictures or documents."); return; }
+  if (/^image\//.test(f.type) || /\.(png|jpe?g|gif|webp|heic|pdf|zip|docx?|xlsx?)$/i.test(f.name)) { toast("For pictures use + then Add a picture. Documents aren\u2019t supported yet."); return; }
   if (f.size > 200000) { toast("That file is too big. Try one under about 40 KB."); return; }
   let body = "";
   try { body = await f.text(); } catch { toast("Could not read that file."); return; }
@@ -984,12 +1042,39 @@ $("fileIn").addEventListener("change", async () => {
   if (body.length > 40000) { toast("That file is too long. Try one under about 40 KB."); return; }
   pendingFile = { name: f.name.slice(0, 60), body }; showChip(); q.focus();
 });
-$("fileX").onclick = () => { pendingFile = null; showChip(); };
+function loadImage(f) {
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); ok(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error("bad")); };
+    im.src = url;
+  });
+}
+$("imgIn").addEventListener("change", async () => {
+  const f = $("imgIn").files[0]; $("imgIn").value = "";
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { toast("That isn\u2019t a picture."); return; }
+  if (f.size > 25e6) { toast("That picture is too big."); return; }
+  try {
+    const im = await loadImage(f);
+    const sc = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(im.naturalWidth * sc)); c.height = Math.max(1, Math.round(im.naturalHeight * sc));
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+    let url = c.toDataURL("image/jpeg", 0.82);
+    if (url.length > 2400000) url = c.toDataURL("image/jpeg", 0.6);
+    if (url.length > 2900000) { toast("That picture is too big even after shrinking."); return; }
+    pendingImage = { name: (f.name || "picture").replace(/[\[\]\n]/g, "").slice(0, 50) || "picture", url };
+    showChip(); q.focus();
+  } catch { toast("Could not open that picture. Try a JPEG or PNG."); }
+});
+$("fileX").onclick = () => { pendingFile = null; pendingImage = null; showChip(); };
 $("attach").addEventListener("click", e => {
   const b = e.target.closest("[data-att]"); if (!b) return;
   const a = b.dataset.att;
   if (!a || recentlyOpened()) return;
   if (a === "file") { closeSheets(); $("fileIn").click(); return; }
+  if (a === "img") { closeSheets(); if (st && st.vision === false) toast("None of your AIs can read pictures yet. Groq, Mistral, OpenRouter and NVIDIA can."); $("imgIn").click(); return; }
   if (a === "usage") return openUsage();
   if (a === "prov") { closeSheets(); return panel("drawer-open"); }
   if (a === "share") { closeSheets(); return shareChat(); }
@@ -1067,7 +1152,7 @@ function add(cls, text, meta, idx, quiet) {
   if (cls === "bot") {
     const prev = idx !== undefined ? history[idx - 1] : null;
     const asGrid = !!(prev && prev.role === "user" && TABLE_ASK.test(String(prev.content)));
-    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="listen">Listen</button><button type="button" data-act="regen" class="off">Regenerate</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
+    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="up" aria-label="Good answer">\ud83d\udc4d</button><button type="button" data-act="down" aria-label="Bad answer">\ud83d\udc4e</button><button type="button" data-act="listen">Listen</button><button type="button" data-act="regen" class="off">Regenerate</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
   } else if (cls === "note") {
     d.innerHTML = `<div class="mtxt">${esc(text)}</div>`;
   } else {
@@ -1089,7 +1174,7 @@ function redraw(animate) {
   $("empty").classList.toggle("off", history.length > 0);
   if (animate) play(col, "fade-in");
   toBottom();
-  refreshActs();
+  refreshActs(); paintVotes();
 }
 // Regenerate / Continue only on the latest answer.
 function cutOff(m) {
@@ -1109,6 +1194,53 @@ function refreshActs() {
   if (!m || m.role !== "assistant") return;
   last.querySelector('[data-act="regen"]').classList.remove("off");
   if (cutOff(m)) last.querySelector('[data-act="cont"]').classList.remove("off");
+}
+
+let webOn = false;
+try { webOn = localStorage.getItem("webOn") === "1"; } catch {}
+const webAvail = () => !!(st && st.web);
+function paintWeb() {
+  const b = $("webbtn");
+  b.classList.toggle("off", !webAvail());
+  b.classList.toggle("on", webOn);
+  b.setAttribute("aria-pressed", webOn ? "true" : "false");
+}
+$("webbtn").onclick = () => {
+  webOn = !webOn; try { localStorage.setItem("webOn", webOn ? "1" : "0"); } catch {}
+  paintWeb(); toast(webOn ? "Web search on. Answers can use live results." : "Web search off.");
+};
+
+// Thumbs up / down (only counts are sent to the server, never the chat text)
+const voteKey = i => chatId + ":" + i;
+function getVotes() { try { return JSON.parse(localStorage.getItem("votes") || "{}"); } catch { return {}; } }
+function setVote(i, v) {
+  const all = getVotes(); if (v) all[voteKey(i)] = v; else delete all[voteKey(i)];
+  const ks = Object.keys(all); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(k => delete all[k]);
+  try { localStorage.setItem("votes", JSON.stringify(all)); } catch {}
+}
+function paintVotes() {
+  const all = getVotes();
+  col.querySelectorAll(".msg.bot").forEach(el => {
+    const v = all[voteKey(el.dataset.i)];
+    const u = el.querySelector('[data-act="up"]'), d = el.querySelector('[data-act="down"]');
+    if (u) u.classList.toggle("on", v === "up");
+    if (d) d.classList.toggle("on", v === "down");
+  });
+}
+function voteOn(msgEl, i, which) {
+  const m = history[i]; if (!m) return;
+  const all = getVotes(), cur = all[voteKey(i)];
+  const next = cur === which ? "" : which;
+  setVote(i, next);
+  const prov = String(m.meta || "").split(" \u00b7 ")[0];
+  api("/api/feedback", { chatId, index: i, vote: next, provider: prov }).catch(() => {});
+  msgEl.querySelectorAll(".reasons").forEach(r => r.remove());
+  paintVotes();
+  if (next === "down") {
+    const r = document.createElement("div"); r.className = "reasons";
+    r.innerHTML = '<button type="button" data-why="wrong">Wrong</button><button type="button" data-why="unhelpful">Not helpful</button><button type="button" data-why="long">Too long</button><button type="button" data-why="other">Other</button>';
+    msgEl.appendChild(r);
+  }
 }
 
 // Read aloud
@@ -1131,7 +1263,7 @@ function speak(text, btn) {
 }
 function cancelEdit(keepText) {
   editing = null; $("editbar").classList.add("off");
-  if (!keepText) { q.value = ""; q.dispatchEvent(new Event("input")); pendingFile = null; showChip(); }
+  if (!keepText) { q.value = ""; q.dispatchEvent(new Event("input")); pendingFile = null; pendingImage = null; showChip(); }
 }
 $("editcancel").onclick = () => cancelEdit(false);
 $("sugg").onclick = e => { const s = e.target.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
@@ -1143,10 +1275,18 @@ col.addEventListener("click", async e => {
     if (nb.dataset.note === "retry" && !busy && q.value.trim()) $("f").requestSubmit();
     return;
   }
+  const why = e.target.closest("[data-why]");
+  if (why) {
+    const me = why.closest(".msg"), idx = Number(me.dataset.i), m0 = history[idx];
+    api("/api/feedback", { chatId, index: idx, vote: "down", provider: String((m0 && m0.meta) || "").split(" \u00b7 ")[0], reason: why.dataset.why, reasonOnly: true }).catch(() => {});
+    why.closest(".reasons").remove(); toast("Thanks, that helps.");
+    return;
+  }
   const b = e.target.closest("[data-act]"); if (!b) return;
   const msg = b.closest(".msg"); if (!msg) return;
   const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
   const act = b.dataset.act;
+  if (act === "up" || act === "down") { voteOn(msg, i, act); return; }
   if (act === "copy") {
     const q0 = history[i - 1] && history[i - 1].role === "user" ? String(history[i - 1].content) : "";
     const text = q0 ? "You: " + q0 + "\n\nAI Relay: " + String(m.content) : String(m.content);
@@ -1166,6 +1306,7 @@ col.addEventListener("click", async e => {
     if (busy) return;
     const u = history[i - 1]; if (!u || u.role !== "user") return;
     const sf = splitFile(u.content);
+    if (sf && sf.image) { toast("Pictures aren\u2019t kept. Attach it again and send."); return; }
     history.splice(i - 1, 2); stopSpeak(); redraw(false);
     q.value = sf ? sf.text : String(u.content); pendingFile = sf ? { name: sf.name, body: sf.body } : null; showChip();
     q.dispatchEvent(new Event("input")); $("f").requestSubmit();
@@ -1178,7 +1319,8 @@ col.addEventListener("click", async e => {
   }
   if (act === "edit") {
     const sf = splitFile(m.content);
-    editing = i; q.value = sf ? sf.text : String(m.content); pendingFile = sf ? { name: sf.name, body: sf.body } : null; showChip();
+    if (sf && sf.image) toast("Pictures aren\u2019t kept. Attach it again if you still need it.");
+    editing = i; q.value = sf ? sf.text : String(m.content); pendingFile = sf && !sf.image ? { name: sf.name, body: sf.body } : null; showChip();
     q.dispatchEvent(new Event("input")); $("editbar").classList.remove("off"); q.focus();
   }
   if (act === "del") {
@@ -1201,12 +1343,13 @@ function setBusy(on) {
 const TRUST_Q = /(trust|legit|safe|scam|fake|reliable|reputable|genuine|credible|dodgy|sketchy|phishing|fraud|rip.?off)/i;
 const SITE_REF = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|co|uk|app|shop|store|xyz|info|online|site|biz|us|eu|de|fr|mt|ai|me|tv)\b|\b(site|website|web ?site|link|url|domain|online store|webshop)\b)/i;
 const TRUST_HINT = "\n\n[Note for the assistant, do not mention this note: the user is asking whether a website, store or link is trustworthy. Do not refuse or say you cannot help. You cannot open the site live, so say that once in a short clause, then give a genuinely useful assessment from what you know: whether the name or domain is a well-known established site, any reputation or scam reports you are aware of, and good signs or red flags in the address itself (look-alike spelling, odd endings, too-good-to-be-true offers). Give a clear verdict such as 'looks legitimate', 'be careful' or 'likely a scam' with how confident you are, then list quick checks the user can do: https and padlock, searching the name with 'reviews' and 'scam', Trustpilot or Scamadviser, domain age on a WHOIS lookup, real contact details and return policy, and paying by card or PayPal. Never encourage entering passwords or card details on a site you are unsure about.]";
-function apiMessages() {
+function apiMessages(imgUrl) {
   const out = history.map(m => ({ role: m.role, content: m.content }));
   const last = out[out.length - 1];
   if (last && last.role === "user") {
     const sf = splitFile(last.content), vis = sf ? sf.text : last.content;
     if (TRUST_Q.test(vis) && SITE_REF.test(vis)) last.content += TRUST_HINT;
+    if (imgUrl) last.content = [{ type: "text", text: last.content }, { type: "image_url", image_url: { url: imgUrl } }];
   }
   return out;
 }
@@ -1214,11 +1357,12 @@ function apiMessages() {
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
   if (busy) { if (abortCtl) abortCtl.abort(); return; }
-  const typed = q.value.trim(), file = pendingFile;
-  if (!typed && !file) return;
-  const text = withFile(typed || "Please read this file and tell me what it is about.", file);
+  const typed = q.value.trim(), file = pendingFile, image = pendingImage;
+  if (!typed && !file && !image) return;
+  const text = withFile(typed || (image && !file ? "What is in this picture?" : "Please read this file and tell me what it is about."), file) + (image ? "\n\n[Attached picture: " + image.name + "]" : "");
+  const useWeb = webAvail() && (webOn || (TRUST_Q.test(typed) && SITE_REF.test(typed)));
   if (editing !== null) { history.length = editing; editing = null; $("editbar").classList.add("off"); redraw(false); }
-  q.value = ""; q.style.height = "auto"; pendingFile = null; showChip();
+  q.value = ""; q.style.height = "auto"; pendingFile = null; pendingImage = null; showChip();
   history.push({ role: "user", content: text });
   const mine = add("me", text, "", history.length - 1, true);
   mine.classList.add("pop");
@@ -1249,7 +1393,7 @@ $("f").addEventListener("submit", async e => {
   setBusy(true);
   refreshActs();
   abortCtl = new AbortController();
-  let full = "", shown = "", meta = "", errorInfo = null;
+  let full = "", shown = "", meta = "", errorInfo = null, sources = [];
   const body = () => bubble.querySelector(".body");
   const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
 
@@ -1291,13 +1435,15 @@ $("f").addEventListener("submit", async e => {
     }
     else if (ev.type === "done") { if (ev.fellBack) meta += " · your pinned choice was unavailable"; showMeta(); }
     else if (ev.type === "error") { errorInfo = ev; }
+    else if (ev.type === "status") { if (stage === "thinking" && ev.text) setStatus(ev.text); }
+    else if (ev.type === "web") { sources = Array.isArray(ev.sources) ? ev.sources : []; }
   };
 
   try {
     const r = await fetch("/api/chat-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" },
-      body: JSON.stringify({ chatId, messages: apiMessages() }),
+      body: JSON.stringify({ chatId, messages: apiMessages(image && image.url), web: useWeb, query: typed }),
       signal: abortCtl.signal,
     });
     if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
@@ -1319,6 +1465,9 @@ $("f").addEventListener("submit", async e => {
     if (!(abortCtl && abortCtl.signal.aborted)) errorInfo = errorInfo || { error: err.message };
   }
 
+  if (full && sources.length) {
+    full += "\n\nSources:\n" + sources.map((s, n) => "- [" + n + "] [" + String(s.title).replace(/[\[\]]/g, "").slice(0, 80) + "](" + s.url + ")").join("\n").replace(/\[(\d)\] \[/g, (m, d) => "[" + (Number(d) + 1) + "] [");
+  }
   flush();
   const stopped = !!(abortCtl && abortCtl.signal.aborted);
   abortCtl = null;
@@ -1337,7 +1486,7 @@ $("f").addEventListener("submit", async e => {
     bubble.remove();
     if (!stopped) {
       history.pop(); mine.remove();
-      q.value = typed; pendingFile = file; showChip(); q.dispatchEvent(new Event("input"));
+      q.value = typed; pendingFile = file; pendingImage = image; showChip(); q.dispatchEvent(new Event("input"));
       showError(errorInfo ? errorInfo.error : "No reply.", true);
     }
     refreshActs();
