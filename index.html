@@ -70,7 +70,7 @@
   .corner-btn { position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px; padding:8px 12px; border-radius:99px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px; }
   .corner-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
   .hero { width:100%; max-width:440px; text-align:center; }
-  .logo-tile { width:64px; height:64px; margin:0 auto 14px; border-radius:18px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-size:30px; font-weight:700; box-shadow:0 12px 32px rgba(56,130,255,.35); }
+  .logo-tile { width:64px; height:64px; margin:0 auto 14px; border-radius:18px; background:#0f172a; color:#fff; display:grid; place-items:center; font-size:30px; font-weight:700; box-shadow:0 12px 32px rgba(56,130,255,.35); }
   .hero h1 { font-size:30px; font-weight:800; letter-spacing:-0.02em; margin:0 0 6px; }
   .hero p { color:var(--mute); margin:0; font-size:15px; }
   .panel { width:100%; max-width:440px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:20px; transition:opacity .3s ease, transform .3s var(--ease); }
@@ -192,7 +192,7 @@
   #app.drawer-open #drawer { transform:none; }
   .shead { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 10px; }
   .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; }
-  .logo { width:30px; height:30px; flex:none; border-radius:9px; background:linear-gradient(135deg,#2563eb,#38bdf8); color:#fff; display:grid; place-items:center; font-weight:700; font-size:16px; }
+  .logo { width:30px; height:30px; flex:none; border-radius:9px; background:#0f172a; color:#fff; display:grid; place-items:center; font-weight:700; font-size:16px; }
   .nav { display:flex; align-items:center; gap:12px; width:100%; padding:10px; border-radius:12px; font-size:16px; text-align:left; }
   .nav:hover { background:var(--raised); }
   .nav .icon { width:34px; height:34px; background:none; border:0; }
@@ -378,7 +378,7 @@
   </button>
 
   <header class="hero">
-    <div class="logo-tile" aria-hidden="true">⇄</div>
+    <div class="logo-tile" aria-hidden="true"><svg viewBox="0 0 120 120" width="100%" height="100%" aria-hidden="true"><defs><linearGradient id="spk1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><path d="M60 22c3 22 16 35 38 38-22 3-35 16-38 38-3-22-16-35-38-38 22-3 35-16 38-38z" fill="url(#spk1)"/></svg></div>
     <h1>AI Relay</h1>
     <p>When one free AI runs out, the next picks up.</p>
   </header>
@@ -472,7 +472,7 @@
   <div id="scrim"></div>
 
   <aside id="side" aria-label="Menu">
-    <div class="shead"><div class="brand"><span class="logo" aria-hidden="true">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="shead"><div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 120 120" width="100%" height="100%" aria-hidden="true"><defs><linearGradient id="spk2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><path d="M60 22c3 22 16 35 38 38-22 3-35 16-38 38-3-22-16-35-38-38 22-3 35-16 38-38z" fill="url(#spk2)"/></svg></span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
