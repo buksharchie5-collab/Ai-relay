@@ -384,6 +384,7 @@
   <section class="panel" id="choose">
     <h2>New here?</h2>
     <p class="sub">Create a personal key. It saves your setup and works on any device.</p>
+    <p class="sub" style="margin-top:-4px"><b>Your key is your password.</b> There is no email or reset, so you must save it. If you lose it, your chats are gone for good.</p>
     <div id="ts" style="margin:0 0 12px"></div>
     <button id="create" type="button" class="btn block">Create my key</button>
   </section>
@@ -403,7 +404,7 @@
 
   <section class="panel off" id="made">
     <h2>Save your key</h2>
-    <p class="sub">Keep this somewhere safe, like a password manager. It cannot be recovered if you lose it.</p>
+    <p class="sub"><b>This key is your password.</b> Copy it and save it now, in your notes or a password manager. If you lose it, nobody can get it back and you lose your chats.</p>
     <code class="key" id="newkey"></code>
     <div class="keyrow">
       <button id="copy2" class="btn ghost" type="button">Copy</button>
@@ -474,11 +475,7 @@
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
-    <button class="nav" id="sideLink" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span>Link &amp; export</button>
-    <a class="nav" id="sideBlog" href="/blog"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>Blog</a>
-    <button class="nav" id="sideHome" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
-    <button class="nav" id="sideDevice" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span>Sign in on another device</button>
-    <button class="nav" id="sideTheme" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span id="themeLbl">Light mode</span></button>
+    <button class="nav" id="sideOpts" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span>Options</button>
     <div class="label">Your chats</div>
     <input id="chatSearch" class="csearch off" type="search" placeholder="Search chats" aria-label="Search chats" autocomplete="off">
     <div id="chatlist"></div>
@@ -518,6 +515,21 @@
         <button type="button" class="opt" data-x="pdf"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 13h6M9 17h6"/></svg></span><span class="tx"><b>Print or save as PDF</b><small>Opens the print window; choose Save as PDF</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-close>Cancel</button>
+    </div>
+  </div>
+
+  <div id="osheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Options</div>
+      <div class="dropcard drop">
+        <button type="button" class="opt" id="sideTheme"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span class="tx"><b><span id="themeLbl">Light mode</span></b><small>Switch between light and dark</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" id="sideHome"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span class="tx"><b>Add to Home Screen</b><small>Open AI Relay like an app</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" id="sideLink"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><span class="tx"><b>Link &amp; export</b><small>Public link, download or print</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" id="sideDevice"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><span class="tx"><b>Sign in on another device</b><small>Send yourself a sign-in link</small></span><span class="chev" aria-hidden="true">›</span></button>
+      </div>
+      <button type="button" class="cancelbtn" data-close>Done</button>
     </div>
   </div>
 
@@ -688,6 +700,7 @@ function updateGreeting() {
 }
 
 $("homeBtn").onclick = () => openSheetEl("hsheet");
+$("sideOpts").onclick = () => openSheetEl("osheet");
 $("sideHome").onclick = () => openSheetEl("hsheet");
 
 // --- formatter ---
@@ -1152,7 +1165,7 @@ function add(cls, text, meta, idx, quiet) {
   if (cls === "bot") {
     const prev = idx !== undefined ? history[idx - 1] : null;
     const asGrid = !!(prev && prev.role === "user" && TABLE_ASK.test(String(prev.content)));
-    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="up" aria-label="Good answer">\ud83d\udc4d</button><button type="button" data-act="down" aria-label="Bad answer">\ud83d\udc4e</button><button type="button" data-act="listen">Listen</button><button type="button" data-act="regen" class="off">Regenerate</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
+    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="up" aria-label="Good answer">\ud83d\udc4d</button><button type="button" data-act="down" aria-label="Bad answer">\ud83d\udc4e</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
   } else if (cls === "note") {
     d.innerHTML = `<div class="mtxt">${esc(text)}</div>`;
   } else {
@@ -1192,7 +1205,6 @@ function refreshActs() {
   if (!last) return;
   const m = history[Number(last.dataset.i)];
   if (!m || m.role !== "assistant") return;
-  last.querySelector('[data-act="regen"]').classList.remove("off");
   if (cutOff(m)) last.querySelector('[data-act="cont"]').classList.remove("off");
 }
 
