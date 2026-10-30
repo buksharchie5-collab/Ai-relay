@@ -354,6 +354,9 @@
   html[data-theme="light"] #undoToast button:hover { background:rgba(255,255,255,.1); }
   /* installed iPhone app: keep the clock/battery strip dark so it stays readable in light mode */
   @media (display-mode:standalone) { html[data-theme="light"] body::before { content:""; position:fixed; top:0; left:0; right:0; height:env(safe-area-inset-top,0px); background:#212121; z-index:9999; pointer-events:none; } }
+  .keyline { display:flex; align-items:center; gap:8px; min-width:0; }
+  .minibtn { padding:4px 10px; border-radius:99px; background:var(--field); color:var(--ink); font-size:12px; font-weight:600; flex:none; }
+  .minibtn:hover { background:var(--raised); }
 </style>
 </head>
 <body>
@@ -457,14 +460,13 @@
     <div class="shead"><div class="brand"><span class="logo" aria-hidden="true">⇄</span>AI Relay</div><button id="sideclose" class="icon" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
-    <button class="nav" id="sideKey" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/></svg></span>Copy my key</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
     <button class="nav" id="sideHome" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span>Add to Home Screen</button>
     <button class="nav" id="sideTheme" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span id="themeLbl">Light mode</span></button>
     <div class="label">Your chats</div>
     <input id="chatSearch" class="csearch off" type="search" placeholder="Search chats" aria-label="Search chats" autocomplete="off">
     <div id="chatlist"></div>
-    <div class="sidefoot"><span id="acctline"></span><button id="sideOut" class="btn ghost small" type="button">Sign out</button></div>
+    <div class="sidefoot"><span class="keyline"><span id="acctline"></span><button id="sideKey" class="minibtn" type="button" aria-label="Copy my key">Copy</button></span><button id="sideOut" class="btn ghost small" type="button">Sign out</button></div>
   </aside>
 
   <aside id="drawer" aria-label="AI providers">
@@ -862,8 +864,11 @@ async function shareSaved(id) {
 $("sideShare").onclick = () => { closeAll(); shareChat(); };
 $("sideKey").onclick = async () => {
   const k = getKey(); if (!k) return;
-  try { await navigator.clipboard.writeText(k); toast("Key copied. Keep it private."); }
-  catch { toast("Could not copy your key."); }
+  const b = $("sideKey");
+  try {
+    await navigator.clipboard.writeText(k); toast("Key copied. Keep it private.");
+    b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1400);
+  } catch { toast("Could not copy your key."); }
 };
 
 $("menu").onclick = () => panel("side-open");
