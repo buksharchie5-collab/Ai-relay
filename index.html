@@ -487,7 +487,7 @@
     <div class="dhead"><h2>AI providers</h2><button id="close" class="btn ghost small" type="button">Done</button></div>
     <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
     <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
-    <div id="cards" style="overflow-y:auto;flex:1;padding-bottom:24px"></div>
+    <div id="cards" style="overflow-y:auto;flex:1"></div>
   </aside>
 
   <div id="attach" class="sheet">
@@ -1660,21 +1660,6 @@ document.addEventListener("touchmove", e => {
   }
   e.preventDefault();
 }, { passive: false });
-
-// Home-screen app on some iPhones: the page ends a little above the bottom of the screen, leaving a grey band. Stretch it to the full screen height.
-(function fillScreen() {
-  const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
-  if (!standalone) return;
-  const apply = () => {
-    const app = document.getElementById("app"); if (!app) return;
-    const portrait = window.innerHeight >= window.innerWidth;
-    const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-    if (portrait && full - window.innerHeight > 8 && full - window.innerHeight < 120) {
-      app.style.height = full + "px"; ["login"].forEach(id => { const el = document.getElementById(id); if (el) el.style.maxHeight = full + "px"; });
-    } else { app.style.height = ""; const l = document.getElementById("login"); if (l) l.style.maxHeight = ""; }
-  };
-  apply(); window.addEventListener("orientationchange", () => setTimeout(apply, 300));
-})();
 </script>
 </body>
 </html>
