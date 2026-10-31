@@ -211,6 +211,14 @@
   .pc { background:var(--raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:10px; transition:border-color .25s ease, box-shadow .25s ease; }
   .pc.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
   .pc .h { display:flex; align-items:center; gap:8px; font-weight:700; }
+  .pc .ph { cursor:pointer; user-select:none; min-height:34px; }
+  .pc .pname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pc .ppin { flex:none; padding:6px 10px; font-size:12.5px; }
+  .pchev { flex:none; width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:var(--mute); }
+  .pchev:hover { color:var(--ink); background:var(--field); }
+  .pchev svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s var(--ease); }
+  .pchev.open svg { transform:rotate(180deg); }
+  .pc .pbody { margin-top:8px; animation:fadeIn .25s var(--ease) both; }
   .pc .sub { color:var(--mute); font-size:13px; margin-top:2px; }
   .pc .st { display:flex; align-items:center; gap:8px; font-size:13.5px; margin-top:6px; }
   .pc .acts { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
@@ -866,29 +874,38 @@ function render() {
   $("pdot").className = "dot " + (!live.length ? "" : st.nextUp ? "ok" : "warn");
   $("mtxt").textContent = st.selected === "auto" ? "Auto" : (cur ? cur.name : (st.selected || "Auto"));
   $("mprov").textContent = !live.length ? "" : (cur ? "· " + cur.name : (st.nextUp ? "· " + st.nextUp : ""));
-  $("setup").classList.toggle("off", st.providers.some(p => p.own));
+  $("setup").classList.add("off");
   $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
   $("acctline").textContent = "Key " + (getKey() || "").slice(0, 7) + "…";
   $("cards").innerHTML = st.providers.map(p => {
-    const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div>`;
-    if (!p.hasKey) return `<div class="pc"><div class="h"><span class="dot"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
-      <div class="sub" style="margin-top:8px"><a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a free key"}</a></div>${keyBox}</div>`;
+    const open = openCards.has(p.name);
+    const keyLink = `<a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a key"}</a>`;
+    const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div><div class="sub" style="margin-top:6px">${keyLink}</div>`;
+    const chev = `<button type="button" class="pchev${open ? " open" : ""}" data-tog="${p.name}" aria-label="${open ? "Hide" : "Show"} ${p.name} details" aria-expanded="${open}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>`;
+    if (!p.hasKey) return `<div class="pc"><div class="h ph" data-tog="${p.name}"><span class="dot"></span><span class="pname">${p.name}${p.paid ? " · paid" : ""}</span>${chev}</div>
+      <div class="pbody${open ? "" : " off"}"><div class="sub">${p.model}</div>${keyBox}</div></div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
     const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
-    const shared = !p.own
-      ? (p.paid ? `<div class="sub" style="margin-top:6px">Paid AI · add your own key to use it. <a href="${p.keyUrl}" target="_blank" rel="noopener">Get one</a></div>${keyBox}`
-               : `<div class="sub" style="margin-top:6px">Shared key · <a href="${p.keyUrl}" target="_blank" rel="noopener">get your own free key</a> for more messages</div>${keyBox}`)
-      : "";
+    const keyPart = p.own ? `<div class="sub" style="margin-top:6px">Using your own key</div>` : keyBox;
     const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
-    return `<div class="pc ${on ? "sel" : ""}"><div class="h"><span class="dot ${rest ? "warn" : "ok"}"></span>${p.name}${p.paid ? " · paid" : ""}</div><div class="sub">${p.model}</div>
-      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${shared}${tr}
-      <div class="acts"><button class="btn small ${on ? "on" : "ghost"}" data-pin="${p.name}">${on ? "Pinned" : "Use only this one"}</button><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div>`;
+    return `<div class="pc ${on ? "sel" : ""}"><div class="h ph" data-tog="${p.name}"><span class="dot ${rest ? "warn" : "ok"}"></span><span class="pname">${p.name}${p.paid ? " · paid" : ""}</span>
+      <button class="btn small ${on ? "on" : "ghost"} ppin" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button>${chev}</div>
+      <div class="pbody${open ? "" : " off"}"><div class="sub">${p.model}</div>
+      <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${keyPart}${tr}
+      <div class="acts"><button class="btn small ghost" data-test="${p.name}">Test</button>${p.own ? `<button class="btn small ghost" data-del="${p.name}">Remove key</button>` : ""}</div></div></div>`;
   }).join("");
 }
 
+var openCards = new Set();
 $("drawer").addEventListener("click", async e => {
-  const t = e.target.dataset;
+  const btn = e.target.closest("[data-pin],[data-test],[data-del],[data-save]");
+  const t = btn ? btn.dataset : {};
+  if (!btn) {
+    const tog = e.target.closest("[data-tog]");
+    if (tog && !e.target.closest("input,a")) { const n = tog.dataset.tog; if (openCards.has(n)) openCards.delete(n); else openCards.add(n); render(); }
+    return;
+  }
   try {
     if (t.pin) { st = await api("/api/select", { provider: t.pin }); render(); }
     else if (t.test) {
