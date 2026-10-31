@@ -487,7 +487,7 @@
     <div class="dhead"><h2>AI providers</h2><button id="close" class="btn ghost small" type="button">Done</button></div>
     <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
     <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
-    <div id="cards" style="overflow-y:auto;flex:1"></div>
+    <div id="cards" style="overflow-y:auto;flex:1;padding-bottom:24px"></div>
   </aside>
 
   <div id="attach" class="sheet">
@@ -1185,6 +1185,7 @@ function redraw(animate) {
   [...col.children].forEach(c => { if (c.id !== "empty") c.remove(); });
   history.forEach((m, i) => add(m.role === "user" ? "me" : "bot", String(m.content ?? ""), m.meta, i, true));
   $("empty").classList.toggle("off", history.length > 0);
+  restoreDraft();
   if (animate) play(col, "fade-in");
   toBottom();
   refreshActs(); paintVotes();
@@ -1341,7 +1342,22 @@ col.addEventListener("click", async e => {
   }
 });
 
-q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
+// Auto-save: what you are typing is kept per chat, so closing the app or a refresh never loses it.
+const draftKey = () => "draft:" + (history.length ? chatId : "new");
+let draftT = null;
+function saveDraft() {
+  if (editing !== null) return;
+  try { const v = q.value; if (v.trim()) localStorage.setItem(draftKey(), v.slice(0, 20000)); else localStorage.removeItem(draftKey()); } catch {}
+}
+function restoreDraft() {
+  if (editing !== null || busy || q.value) return;
+  try { const v = localStorage.getItem(draftKey()); if (v) { q.value = v; q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; } } catch {}
+}
+function clearDraft() { try { localStorage.removeItem(draftKey()); } catch {} }
+restoreDraft();
+window.addEventListener("pagehide", saveDraft);
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; clearTimeout(draftT); draftT = setTimeout(saveDraft, 400); });
 q.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) $("f").requestSubmit(); } });
 
 function setBusy(on) {
@@ -1374,8 +1390,9 @@ $("f").addEventListener("submit", async e => {
   const text = withFile(typed || (image && !file ? "What is in this picture?" : "Please read this file and tell me what it is about."), file) + (image ? "\n\n[Attached picture: " + image.name + "]" : "");
   const useWeb = webAvail() && (webOn || (TRUST_Q.test(typed) && SITE_REF.test(typed)));
   if (editing !== null) { history.length = editing; editing = null; $("editbar").classList.add("off"); redraw(false); }
-  q.value = ""; q.style.height = "auto"; pendingFile = null; pendingImage = null; showChip();
+  q.value = ""; q.style.height = "auto"; pendingFile = null; pendingImage = null; showChip(); clearTimeout(draftT); clearDraft();
   history.push({ role: "user", content: text });
+  syncChat();
   const mine = add("me", text, "", history.length - 1, true);
   mine.classList.add("pop");
   const bubble = add("bot", "Thinking…", "", history.length, true);
@@ -1643,6 +1660,21 @@ document.addEventListener("touchmove", e => {
   }
   e.preventDefault();
 }, { passive: false });
+
+// Home-screen app on some iPhones: the page ends a little above the bottom of the screen, leaving a grey band. Stretch it to the full screen height.
+(function fillScreen() {
+  const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  if (!standalone) return;
+  const apply = () => {
+    const app = document.getElementById("app"); if (!app) return;
+    const portrait = window.innerHeight >= window.innerWidth;
+    const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+    if (portrait && full - window.innerHeight > 8 && full - window.innerHeight < 120) {
+      app.style.height = full + "px"; ["login"].forEach(id => { const el = document.getElementById(id); if (el) el.style.maxHeight = full + "px"; });
+    } else { app.style.height = ""; const l = document.getElementById("login"); if (l) l.style.maxHeight = ""; }
+  };
+  apply(); window.addEventListener("orientationchange", () => setTimeout(apply, 300));
+})();
 </script>
 </body>
 </html>
