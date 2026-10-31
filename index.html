@@ -662,7 +662,7 @@ function showChip() {
 }
 
 async function api(path, body) {
-  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "" }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "X-Access-Key": getKey() || "", "X-Device": (() => { try { return deviceId(); } catch { return ""; } })() }, body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401) { signOut(); throw new Error("Key not recognized"); }
   return r.json();
 }
