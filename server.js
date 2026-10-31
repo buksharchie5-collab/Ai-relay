@@ -200,7 +200,7 @@ async function countSignup() {
   if (USE_REDIS) {
     await redis(["INCR", "stats:signups:total"]);
     await redis(["INCR", "stats:signups:day:" + today()]);
-    await redis(["EXPIRE", "stats:signups:day:" + today(), "172800"]);
+    await redis(["EXPIRE", "stats:signups:day:" + today(), DAY_TTL]);
     return;
   }
   memStats.total++;
@@ -213,6 +213,84 @@ async function signupStats() {
     return { total, today: todayCount };
   }
   return { total: memStats.total, today: memStats.byDay[today()] || 0 };
+}
+
+
+// --- People counters: new devices and new internet connections, not just new keys ---
+// IP addresses and device ids are scrambled (HMAC) before saving, so the real values are never stored.
+const PEOPLE_SALT = process.env.STATS_SALT || ADMIN_KEY || "ai-relay-stats";
+const anon = (kind, v) => crypto.createHmac("sha256", PEOPLE_SALT).update(kind + ":" + String(v || "")).digest("hex").slice(0, 20);
+const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
+const DAY_TTL = String(40 * 86400);
+const memPeople = { sets: {}, n: {} };
+async function redisPipe(cmds) {
+  const r = await fetch(UP_URL.replace(/\/+$/, "") + "/pipeline", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${UP_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(cmds),
+    signal: AbortSignal.timeout(10000),
+  });
+  const j = await r.json();
+  return Array.isArray(j) ? j.map((x) => (x && "result" in x ? x.result : null)) : [];
+}
+const memAdd = (set, v) => { const s = (memPeople.sets[set] ||= new Set()); const had = s.has(v); s.add(v); return had ? 0 : 1; };
+const memInc = (k) => { memPeople.n[k] = (memPeople.n[k] || 0) + 1; };
+// Adds v to an all-time set; if it was never seen before, bumps the all-time and today's "new" counters.
+async function firstSeen(kind, v) {
+  const d = today();
+  if (USE_REDIS) {
+    const [added] = await redisPipe([["SADD", "stats:seen:" + kind, v]]);
+    if (Number(added) === 1) await redisPipe([["INCR", "stats:new:" + kind + ":total"], ["INCR", "stats:new:" + kind + ":day:" + d], ["EXPIRE", "stats:new:" + kind + ":day:" + d, DAY_TTL]]);
+    return Number(added) === 1;
+  }
+  const added = memAdd("seen:" + kind, v);
+  if (added) { memInc("new:" + kind + ":total"); memInc("new:" + kind + ":day:" + d); }
+  return !!added;
+}
+// Counts each person once per day.
+async function seenToday(kind, v) {
+  const d = today(), k = "stats:today:" + kind + ":" + d;
+  if (USE_REDIS) { await redisPipe([["SADD", k, v], ["EXPIRE", k, String(3 * 86400)]]); return; }
+  memAdd("today:" + kind + ":" + d, v);
+}
+const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|curl|wget|python|go-http|node-fetch|axios|render|uptime|monitor|headless|lighthouse/i;
+function countVisit(req) {
+  const ua = String(req.headers["user-agent"] || "");
+  if (!ua || BOT_UA.test(ua)) return;
+  const ip = anon("ip", clientIp(req));
+  Promise.all([firstSeen("visitor", ip), seenToday("visitor", ip)]).catch(() => {});
+}
+function countActive(req) {
+  const dev = String(req.headers["x-device"] || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64);
+  const who = dev ? anon("dev", dev) : anon("ip", clientIp(req));
+  seenToday("active", who).catch(() => {});
+}
+function lastDays(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  return out;
+}
+async function peopleStats() {
+  const d = today(), days = lastDays(7);
+  const kinds = ["device", "ip", "visitor"];
+  if (USE_REDIS) {
+    const cmds = [];
+    for (const k of kinds) cmds.push(["GET", "stats:new:" + k + ":total"], ["GET", "stats:new:" + k + ":day:" + d]);
+    cmds.push(["SCARD", "stats:today:visitor:" + d], ["SCARD", "stats:today:active:" + d]);
+    for (const day of days) cmds.push(["GET", "stats:new:device:day:" + day], ["GET", "stats:new:visitor:day:" + day], ["GET", "stats:signups:day:" + day]);
+    const r = (await redisPipe(cmds)).map((x) => Number(x) || 0);
+    let i = 0; const o = {};
+    for (const k of kinds) o[k] = { total: r[i++], today: r[i++] };
+    o.visitorsToday = r[i++]; o.activeToday = r[i++];
+    o.week = days.map((day) => ({ day, newPeople: r[i++], newVisitors: r[i++], keys: r[i++] }));
+    return o;
+  }
+  const g = (k) => memPeople.n[k] || 0, sz = (k) => (memPeople.sets[k] ? memPeople.sets[k].size : 0);
+  const o = {};
+  for (const k of kinds) o[k] = { total: g("new:" + k + ":total"), today: g("new:" + k + ":day:" + d) };
+  o.visitorsToday = sz("today:visitor:" + d); o.activeToday = sz("today:active:" + d);
+  o.week = days.map((day) => ({ day, newPeople: g("new:device:day:" + day), newVisitors: g("new:visitor:day:" + day), keys: day === d ? (memStats.byDay[day] || 0) : (memStats.byDay[day] || 0) }));
+  return o;
 }
 
 // --- thumbs up/down: only counts per AI and a reason, never the chat text ---
@@ -1068,6 +1146,7 @@ async function route(req, res) {
 
   if (!req.url.startsWith("/api/")) {
     if (await publicRoute(req, res)) return;
+    if (req.method === "GET" && req.url.split("?")[0] === "/") countVisit(req);
     return fs.readFile(path.join(__dirname, "index.html"), (err, data) => {
       if (err) { res.writeHead(404); return res.end("Not found"); }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); res.end(data);
@@ -1089,6 +1168,7 @@ async function route(req, res) {
     return send(res, 200, {
       signups,
       sharedToday,
+      people: await peopleStats().catch(() => null),
       feedback: await feedbackStats(),
       blog: { configured: !!RSS_URL, posts: (await blogIndex()).length, lastSync: blogMem.syncedAt ? new Date(blogMem.syncedAt).toISOString() : null, error: blogMem.error },
       webSearch: { configured: !!TAVILY_KEY, usedToday: shared.n.Web || 0, cap: WEB_DAILY_LIMIT },
@@ -1113,13 +1193,14 @@ async function route(req, res) {
     const token = "fa-" + crypto.randomBytes(18).toString("base64url");
     await saveUser(token, newUser());
     await countSignup();
+    try { await Promise.all([firstSeen("device", anon("dev", device)), firstSeen("ip", anon("ip", ip || clientIp(req)))]); } catch {}
     return send(res, 200, { token });
   }
   const token = req.headers["x-access-key"] || "";
   const u = token ? await loadUser(token) : null;
   if (!u) return send(res, 401, { error: "Key not recognized" });
 
-  if (req.url === "/api/status") return send(res, 200, status(u));
+  if (req.url === "/api/status") { countActive(req); return send(res, 200, status(u)); }
 
   if (req.url === "/api/profile") {
     u.profile = {
