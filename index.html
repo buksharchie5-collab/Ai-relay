@@ -325,7 +325,9 @@
   .noteacts { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
   .noteacts button { padding:7px 14px; border-radius:99px; background:var(--field); color:var(--ink); font-size:13.5px; font-weight:600; }
   .noteacts button:hover { background:var(--raised); }
-  #undoToast span { max-width:min(70vw, 360px); }
+  #undoToast { width:max-content; max-width:calc(100vw - 32px); border-radius:20px; line-height:1.35; }
+  #undoToast span { flex:1; min-width:0; }
+  #undoToast button { flex:none; white-space:nowrap; }
 
   /* ---- light theme ---- */
   html[data-theme="light"] { --bg:#ffffff; --panel:#f5f5f6; --raised:#efeff1; --field:#e8e8eb; --ink:#1a1a1a; --mute:#6b6b70; --line:#e1e1e5; color-scheme:light; }
@@ -679,7 +681,13 @@ const recentlyOpened = () => Date.now() - openedAt < 400;
 document.addEventListener("click", e => { if (e.target.dataset && e.target.dataset.close !== undefined && !recentlyOpened()) closeSheets(); });
 
 function signOut() {
+  const was = getKey();
   localStorage.removeItem("freeai-key");
+  try { localStorage.setItem("signed-out", "1"); } catch {}
+  if (was) setTimeout(() => toast("Signed out. Save your key first if you want to come back.", "Undo", () => {
+    localStorage.setItem("freeai-key", was); try { localStorage.removeItem("signed-out"); } catch {}
+    show(true); refresh(); loadChats();
+  }, 7000), 50);
   st = null; history = []; chatId = newId(); profile = { name: "", style: "" };
   closeAll(); closeSheets(); redraw(false); updateGreeting(); show(false);
 }
@@ -1563,6 +1571,7 @@ $("create").onclick = async () => {
     const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId(), turnstile: tsToken }) })).json();
     if (!r.token) throw new Error(r.error || "Could not create a key");
     localStorage.setItem("freeai-key", r.token);
+    try { localStorage.removeItem("signed-out"); } catch {}
     $("newkey").textContent = r.token;
     $("choose").classList.add("off"); $("returning").classList.add("off"); $("orDivider").classList.add("off");
     play($("made"), "appear");
@@ -1578,6 +1587,7 @@ $("enter").onclick = async () => {
   if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
   if (notServed()) { $("lerr").textContent = serverMsg; return; }
   localStorage.setItem("freeai-key", k);
+  try { localStorage.removeItem("signed-out"); } catch {}
   try { st = await api("/api/status"); show(true); await refresh(); render(); loadChats(); }
   catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
 };
@@ -1586,11 +1596,30 @@ let linkedIn = false;
 {
   const lm = /^#key=(fa-[\w.=\-]+)$/.exec(location.hash);
   if (lm) {
-    try { localStorage.setItem("freeai-key", lm[1]); linkedIn = true; } catch {}
+    try { localStorage.setItem("freeai-key", lm[1]); localStorage.removeItem("signed-out"); linkedIn = true; } catch {}
     window.history.replaceState(null, "", location.pathname + location.search);
   }
 }
-if (getKey()) { show(true); refresh(); loadChats(); if (linkedIn) setTimeout(() => toast("Signed in on this device."), 600); } else show(false);
+// New visitors get a key made for them automatically, so they can start chatting straight away.
+// The sign-in page only appears after signing out, or if the automatic key could not be made.
+async function autoKey() {
+  const bot = navigator.webdriver || /bot|crawl|spider|slurp|preview|lighthouse/i.test(navigator.userAgent);
+  let signedOut = false; try { signedOut = localStorage.getItem("signed-out") === "1"; } catch {}
+  if (bot || signedOut || notServed()) { show(false); return; }
+  try {
+    const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId(), turnstile: tsToken }) })).json();
+    if (!r.token) throw new Error(r.error || "Could not create a key");
+    localStorage.setItem("freeai-key", r.token);
+    show(true); await refresh(); loadChats();
+    setTimeout(() => toast("Welcome! We made you a key. It's your password, so copy it and keep it safe.", "Copy key", async () => {
+      try { await navigator.clipboard.writeText(getKey()); toast("Key copied. Keep it private."); } catch { toast("Copy it from the menu, next to Sign out."); }
+    }, 12000), 500);
+  } catch (e) {
+    show(false);
+    $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message;
+  }
+}
+if (getKey()) { show(true); refresh(); loadChats(); if (linkedIn) setTimeout(() => toast("Signed in on this device."), 600); } else autoKey();
 setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
 
 // Jump to latest
