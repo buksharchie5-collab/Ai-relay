@@ -41,6 +41,13 @@
   .msg.err { color:var(--warn); }
   .msg.ok { color:var(--ok); }
   .updated { color:var(--mute); font-size:12px; text-align:center; margin-top:6px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .grid3 .big { font-size:28px; }
+  .tbl { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .tbl th { color:var(--mute); font-weight:600; text-align:right; padding:6px 4px; border-bottom:1px solid var(--line); }
+  .tbl th:first-child, .tbl td:first-child { text-align:left; }
+  .tbl td { text-align:right; padding:7px 4px; border-bottom:1px solid var(--line); }
+  .tbl tr:last-child td { border-bottom:0; }
   .note { color:var(--mute); font-size:13px; line-height:1.6; }
   .note b { color:var(--ink); font-weight:600; }
   @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
@@ -68,8 +75,34 @@
   <div id="dash" class="off">
 
     <section class="card fade">
+      <h2>New people</h2>
+      <p class="why">Phones and computers that made a key for the first time. Making several keys on one device still counts as one person.</p>
+      <div class="row2">
+        <div style="flex:1"><div class="big" id="pplToday">-</div><div class="sub">Today (UTC)</div></div>
+        <div style="flex:1"><div class="big" id="pplTotal">-</div><div class="sub">All time</div></div>
+      </div>
+    </section>
+
+    <section class="card fade">
+      <h2>Visitors</h2>
+      <p class="why">Different internet connections that opened the app, whether or not they made a key. Bots are left out.</p>
+      <div class="grid3">
+        <div><div class="big" id="visToday">-</div><div class="sub">Visited today</div></div>
+        <div><div class="big" id="visNew">-</div><div class="sub">First visit today</div></div>
+        <div><div class="big" id="actToday">-</div><div class="sub">Used the app today</div></div>
+      </div>
+      <p class="note" style="margin-top:12px">New connections making keys today: <b id="ipNew">-</b> (all time <b id="ipTotal">-</b>)</p>
+    </section>
+
+    <section class="card fade">
+      <h2>Last 7 days</h2>
+      <p class="why">Keys can be higher than people when someone makes extra keys.</p>
+      <table class="tbl"><thead><tr><th>Day</th><th>New people</th><th>New visitors</th><th>Keys</th></tr></thead><tbody id="week"></tbody></table>
+    </section>
+
+    <section class="card fade">
       <h2>Personal keys created</h2>
-      <p class="why">Every new "Create my key" tap that succeeded. Each one is a separate person's account.</p>
+      <p class="why">Every "Create my key" tap that worked. One person can make more than one, so use New people above for a real head count.</p>
       <div class="row2">
         <div style="flex:1">
           <div class="big" id="total">-</div>
@@ -135,6 +168,17 @@ async function loadStats(key) {
     const d = await r.json();
     $("total").textContent = d.signups.total.toLocaleString();
     $("today").textContent = d.signups.today.toLocaleString();
+    const p = d.people;
+    if (p) {
+      const n = v => (Number(v) || 0).toLocaleString();
+      $("pplToday").textContent = n(p.device.today); $("pplTotal").textContent = n(p.device.total);
+      $("visToday").textContent = n(p.visitorsToday); $("visNew").textContent = n(p.visitor.today); $("actToday").textContent = n(p.activeToday);
+      $("ipNew").textContent = n(p.ip.today); $("ipTotal").textContent = n(p.ip.total);
+      $("week").innerHTML = p.week.map((w, i) => {
+        const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : new Date(w.day + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+        return `<tr><td>${label}</td><td>${n(w.newPeople)}</td><td>${n(w.newVisitors)}</td><td>${n(w.keys)}</td></tr>`;
+      }).join("");
+    }
     $("providers").innerHTML = Object.entries(d.sharedToday).map(([name, p]) => {
       if (!p.configured) return `<div class="prov"><span class="name">${name}</span><span class="val">no shared key</span></div>`;
       const pct = p.cap > 0 ? Math.min(100, Math.round(p.used / p.cap * 100)) : 0;
