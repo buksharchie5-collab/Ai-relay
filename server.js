@@ -306,6 +306,25 @@ async function countFeedback(provider, vote, prevVote, reason, reasonOnly) {
   }
   if (reason) await bump("stats:feedback:reasons", reason, 1);
 }
+// --- Written feedback from the "Send feedback" box: newest kept first, at most 300 ---
+const memNotes = [];
+async function addNote(note) {
+  const v = JSON.stringify(note);
+  if (USE_REDIS) { await redisPipe([["LPUSH", "feedback:notes", v], ["LTRIM", "feedback:notes", "0", "299"]]); return; }
+  memNotes.unshift(note); memNotes.length = Math.min(memNotes.length, 300);
+}
+async function listNotes(n) {
+  if (USE_REDIS) {
+    const [arr] = await redisPipe([["LRANGE", "feedback:notes", "0", String(n - 1)]]);
+    return (arr || []).map((x) => { try { return JSON.parse(x); } catch { return null; } }).filter(Boolean);
+  }
+  return memNotes.slice(0, n);
+}
+async function noteCount() {
+  if (USE_REDIS) { const [c] = await redisPipe([["LLEN", "feedback:notes"]]); return Number(c) || 0; }
+  return memNotes.length;
+}
+
 async function feedbackStats() {
   const toObj = (arr) => { const o = {}; for (let i = 0; i + 1 < (arr || []).length; i += 2) o[arr[i]] = Number(arr[i + 1]) || 0; return o; };
   if (USE_REDIS) {
@@ -1169,6 +1188,7 @@ async function route(req, res) {
       signups,
       sharedToday,
       people: await peopleStats().catch(() => null),
+      notes: { total: await noteCount().catch(() => 0), latest: await listNotes(50).catch(() => []) },
       feedback: await feedbackStats(),
       blog: { configured: !!RSS_URL, posts: (await blogIndex()).length, lastSync: blogMem.syncedAt ? new Date(blogMem.syncedAt).toISOString() : null, error: blogMem.error },
       webSearch: { configured: !!TAVILY_KEY, usedToday: shared.n.Web || 0, cap: WEB_DAILY_LIMIT },
@@ -1209,6 +1229,17 @@ async function route(req, res) {
     };
     await saveUser(token, u);
     return send(res, 200, { profile: u.profile });
+  }
+
+  if (req.url === "/api/feedback-note") {
+    const text = String(body.text || "").replace(/\r/g, "").trim().slice(0, 1000);
+    if (text.length < 3) return send(res, 400, { error: "Write a little more first." });
+    u.noteDay = u.noteDay && u.noteDay.day === today() ? u.noteDay : { day: today(), n: 0 };
+    if (u.noteDay.n >= 5) return send(res, 429, { error: "Thanks! You've sent 5 today, which is the daily limit." });
+    u.noteDay.n++;
+    await addNote({ at: new Date().toISOString(), text, from: anon("user", token).slice(0, 6) });
+    await saveUser(token, u);
+    return send(res, 200, { ok: true });
   }
 
   if (req.url === "/api/feedback") {
