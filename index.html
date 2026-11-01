@@ -494,6 +494,7 @@
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
+    <button class="nav" id="sideFeedback" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>Send feedback</button>
     <button class="nav" id="sideOpts" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span>Options</button>
     <div class="label">Your chats</div>
     <input id="chatSearch" class="csearch off" type="search" placeholder="Search chats" aria-label="Search chats" autocomplete="off">
@@ -546,7 +547,6 @@
         <button type="button" class="opt" id="sideHome"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span class="tx"><b>Add to Home Screen</b><small>Open AI Relay like an app</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" id="sideLink"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><span class="tx"><b>Link &amp; export</b><small>Public link, download or print</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" id="sideDevice"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><span class="tx"><b>Sign in on another device</b><small>Send yourself a sign-in link</small></span><span class="chev" aria-hidden="true">›</span></button>
-        <button type="button" class="opt" id="sideFeedback"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span><span class="tx"><b>Send feedback</b><small>Ideas, problems, anything</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-close>Done</button>
     </div>
@@ -961,13 +961,19 @@ function openProfile() {
   openSheetEl("psheet");
 }
 $("sideProfile").onclick = openProfile;
-$("sideFeedback").onclick = () => { openSheetEl("fsheet"); setTimeout(() => $("fbText").focus(), 350); };
+let fbWhere = "menu";
+function openFeedback(where, prefill) {
+  fbWhere = where || "menu";
+  if (prefill && !$("fbText").value) $("fbText").value = prefill;
+  openSheetEl("fsheet"); setTimeout(() => $("fbText").focus(), 350);
+}
+$("sideFeedback").onclick = () => openFeedback("menu");
 $("fbSend").onclick = async () => {
   const text = $("fbText").value.trim();
   if (text.length < 3) { toast("Write a little more first."); return; }
   const b = $("fbSend"); b.disabled = true; b.textContent = "Sending…";
   try {
-    const r = await api("/api/feedback-note", { text });
+    const r = await api("/api/feedback-note", { text, where: fbWhere });
     if (r && r.error) toast(r.error);
     else { $("fbText").value = ""; closeSheets(); toast("Thanks! Your feedback was sent."); }
   } catch { toast("Could not send. Try again in a moment."); }
@@ -1312,7 +1318,7 @@ function voteOn(msgEl, i, which) {
   paintVotes();
   if (next === "down") {
     const r = document.createElement("div"); r.className = "reasons";
-    r.innerHTML = '<button type="button" data-why="wrong">Wrong</button><button type="button" data-why="unhelpful">Not helpful</button><button type="button" data-why="long">Too long</button><button type="button" data-why="other">Other</button>';
+    r.innerHTML = '<button type="button" data-why="wrong">Wrong</button><button type="button" data-why="unhelpful">Not helpful</button><button type="button" data-why="long">Too long</button><button type="button" data-why="other">Other</button><button type="button" data-more="1">Tell us more</button>';
     msgEl.appendChild(r);
   }
 }
@@ -1349,6 +1355,7 @@ col.addEventListener("click", async e => {
     if (nb.dataset.note === "retry" && !busy && q.value.trim()) $("f").requestSubmit();
     return;
   }
+  if (e.target.closest("[data-more]")) { e.target.closest(".reasons").remove(); openFeedback("answer", "About an answer: "); return; }
   const why = e.target.closest("[data-why]");
   if (why) {
     const me = why.closest(".msg"), idx = Number(me.dataset.i), m0 = history[idx];
