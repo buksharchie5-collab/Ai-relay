@@ -48,6 +48,18 @@
   .tbl th:first-child, .tbl td:first-child { text-align:left; }
   .tbl td { text-align:right; padding:7px 4px; border-bottom:1px solid var(--line); }
   .tbl tr:last-child td { border-bottom:0; }
+  .glance { display:grid; grid-template-columns:repeat(3,1fr); gap:14px 10px; }
+  .glance .big { font-size:26px; }
+  .glance .warnnum { color:var(--warn); }
+  .hbar { margin:10px 0; }
+  .hbar .top { display:flex; justify-content:space-between; font-size:14px; }
+  .hbar .top span:last-child { color:var(--mute); font-variant-numeric:tabular-nums; }
+  .pill2 { display:inline-block; padding:3px 10px; margin:4px 6px 0 0; border-radius:99px; background:var(--field); font-size:13px; color:var(--mute); }
+  .fb { position:relative; padding-right:34px; }
+  .fb .x { position:absolute; right:0; top:10px; width:28px; height:28px; border-radius:50%; border:0; background:transparent; color:var(--mute); font-size:18px; cursor:pointer; }
+  .fb .x:hover { background:var(--field); color:var(--ink); }
+  .btn.small { display:inline-block; width:auto; margin:0; padding:7px 14px; font-size:13px; border-radius:99px; }
+  .hd { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .fb { padding:12px 0; border-bottom:1px solid var(--line); }
   .fb:last-child { border-bottom:0; }
   .fb .meta { color:var(--mute); font-size:12px; margin-bottom:4px; }
@@ -79,6 +91,20 @@
   <div id="dash" class="off">
 
     <section class="card fade">
+      <h2>Today at a glance</h2>
+      <p class="why">Since midnight UTC.</p>
+      <div class="glance">
+        <div><div class="big" id="gMsgs">-</div><div class="sub">Answers given</div></div>
+        <div><div class="big" id="gActive">-</div><div class="sub">People using it</div></div>
+        <div><div class="big" id="gNew">-</div><div class="sub">New people</div></div>
+        <div><div class="big" id="gVisit">-</div><div class="sub">Visitors</div></div>
+        <div><div class="big" id="gFail">-</div><div class="sub">Failed answers</div></div>
+        <div><div class="big" id="gPer">-</div><div class="sub">Answers per person</div></div>
+      </div>
+      <p class="note" id="gNote" style="margin-top:12px"></p>
+    </section>
+
+    <section class="card fade">
       <h2>New people</h2>
       <p class="why">Phones and computers that made a key for the first time. Making several keys on one device still counts as one person.</p>
       <div class="row2">
@@ -101,13 +127,31 @@
     <section class="card fade">
       <h2>Last 7 days</h2>
       <p class="why">Keys can be higher than people when someone makes extra keys.</p>
-      <table class="tbl"><thead><tr><th>Day</th><th>New people</th><th>New visitors</th><th>Keys</th></tr></thead><tbody id="week"></tbody></table>
+      <table class="tbl"><thead><tr><th>Day</th><th>Answers</th><th>Active</th><th>New people</th><th>Visitors</th><th>Keys</th></tr></thead><tbody id="week"></tbody></table>
     </section>
 
     <section class="card fade">
-      <h2>Feedback messages <span class="sub" id="noteCount" style="font-weight:400"></span></h2>
-      <p class="why">Sent from "Send feedback" in the app's Options. Newest first. The code shows which messages came from the same person.</p>
+      <div class="hd"><h2>Feedback messages <span class="sub" id="noteCount" style="font-weight:400"></span></h2><button id="clearNotes" class="btn ghost small" type="button">Clear all</button></div>
+      <p class="why">Sent from "Send feedback" in the app menu or "Tell us more" after a thumbs-down. Newest first. The code shows which messages came from the same person.</p>
       <div id="notes"></div>
+    </section>
+
+    <section class="card fade">
+      <h2>Which AIs answered today</h2>
+      <p class="why">Share of today's answers, including people using their own keys.</p>
+      <div id="provSplit"></div>
+    </section>
+
+    <section class="card fade">
+      <h2>Answer quality</h2>
+      <p class="why">Thumbs up and down on answers, all time.</p>
+      <div id="quality"></div>
+    </section>
+
+    <section class="card fade">
+      <h2>Features used</h2>
+      <p class="why">Today, with all-time totals where they're kept.</p>
+      <div id="features"></div>
     </section>
 
     <section class="card fade">
@@ -135,6 +179,7 @@
       <h2>How this is stored</h2>
       <p class="note"><b id="storage">-</b></p>
       <p class="note" id="note" style="margin-top:8px"></p>
+      <p class="note" id="uptime" style="margin-top:8px"></p>
     </section>
 
     <div class="row2">
@@ -185,14 +230,48 @@ async function loadStats(key) {
       $("visToday").textContent = n(p.visitorsToday); $("visNew").textContent = n(p.visitor.today); $("actToday").textContent = n(p.activeToday);
       $("ipNew").textContent = n(p.ip.today); $("ipTotal").textContent = n(p.ip.total);
       $("week").innerHTML = p.week.map((w, i) => {
-        const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : new Date(w.day + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-        return `<tr><td>${label}</td><td>${n(w.newPeople)}</td><td>${n(w.newVisitors)}</td><td>${n(w.keys)}</td></tr>`;
+        const label = i === 0 ? "Today" : i === 1 ? "Yest." : new Date(w.day + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+        const bw = (d.biz && d.biz.week && d.biz.week[i]) || {};
+        return `<tr><td>${label}</td><td>${n(bw.msgs)}</td><td>${n(bw.active)}</td><td>${n(w.newPeople)}</td><td>${n(w.newVisitors)}</td><td>${n(w.keys)}</td></tr>`;
       }).join("");
     }
     const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const nn = v => (Number(v) || 0).toLocaleString();
+    const bz = d.biz || { today: {}, byProvider: {}, week: [] }, T = bz.today || {}, pp = d.people || {};
+    $("gMsgs").textContent = nn(T.msgs);
+    $("gActive").textContent = nn(pp.activeToday);
+    $("gNew").textContent = nn(pp.device && pp.device.today);
+    $("gVisit").textContent = nn(pp.visitorsToday);
+    $("gFail").textContent = nn((T.fail || 0) + (T.limit || 0));
+    $("gFail").classList.toggle("warnnum", (T.fail || 0) + (T.limit || 0) > 0);
+    $("gPer").textContent = pp.activeToday ? (Math.round((T.msgs || 0) / pp.activeToday * 10) / 10).toString() : "-";
+    const conv = pp.visitorsToday ? Math.round((pp.activeToday || 0) / pp.visitorsToday * 100) : null;
+    $("gNote").innerHTML = (T.limit ? `<b>${nn(T.limit)}</b> of the failed answers were people hitting their message limit. ` : "") + (conv !== null ? `About <b>${Math.min(conv, 100)}%</b> of today's visitors actually used the app.` : "");
+    const provs = Object.entries(bz.byProvider || {}).sort((a, b) => b[1] - a[1]);
+    const ptot = provs.reduce((a, [, v]) => a + v, 0);
+    $("provSplit").innerHTML = provs.length ? provs.map(([name, v]) => { const pct = Math.round(v / ptot * 100); return `<div class="hbar"><div class="top"><span>${esc(name)}</span><span>${nn(v)} · ${pct}%</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>`; }).join("") : '<p class="note">No answers yet today.</p>';
+    const fv = (d.feedback && d.feedback.votes) || {}, byP = {};
+    let up = 0, down = 0;
+    for (const [k, v] of Object.entries(fv)) { const [p, w] = k.split("|"); if (!byP[p]) byP[p] = { up: 0, down: 0 }; if (w === "up") { byP[p].up += v; up += v; } else if (w === "down") { byP[p].down += v; down += v; } }
+    const reasons = Object.entries((d.feedback && d.feedback.reasons) || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const RN = { wrong: "Wrong", unhelpful: "Not helpful", long: "Too long", other: "Other" };
+    $("quality").innerHTML = (up + down) ? `<div class="row2" style="margin-bottom:6px"><div style="flex:1"><div class="big" style="font-size:28px">${Math.round(up / (up + down) * 100)}%</div><div class="sub">Thumbs up</div></div><div style="flex:1"><div class="big" style="font-size:28px">${nn(up)} / ${nn(down)}</div><div class="sub">Up / down</div></div></div>` +
+      Object.entries(byP).filter(([, x]) => x.up + x.down > 0).sort((a, b) => (b[1].up + b[1].down) - (a[1].up + a[1].down)).map(([p, x]) => { const pct = Math.round(x.up / (x.up + x.down) * 100); return `<div class="hbar"><div class="top"><span>${esc(p)}</span><span>${pct}% good · ${nn(x.up + x.down)} votes</span></div><div class="bar"><span class="${pct < 60 ? "high" : ""}" style="width:${pct}%"></span></div></div>`; }).join("") +
+      (reasons.length ? `<div class="sub" style="margin-top:10px">Why people tapped thumbs down:</div>` + reasons.map(([r, v]) => `<span class="pill2">${esc(RN[r] || r)} ${nn(v)}</span>`).join("") : "")
+      : '<p class="note">No votes yet.</p>';
+    const ws = d.webSearch || {}, bl = d.blog || {};
+    const frow = (name, val) => `<div class="prov"><span class="name">${name}</span><span class="val">${val}</span></div>`;
+    $("features").innerHTML = frow("Web searches", ws.configured ? `${nn(T.web)} today · cap ${nn(ws.cap)}` : "not set up (add TAVILY_API_KEY)") +
+      frow("Pictures sent", `${nn(T.img)} today`) +
+      frow("Public share links made", `${nn(T.share)} today · ${nn(bz.sharesTotal)} all time`) +
+      frow("Own AI keys added", `${nn(T.ownkey)} today · ${nn(bz.ownKeysTotal)} all time`) +
+      frow("Feedback messages", `${nn(T.note)} today`) +
+      frow("Blog", bl.configured ? `${nn(bl.posts)} posts${bl.lastSync ? " · checked " + new Date(bl.lastSync).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}${bl.error ? " · problem: " + esc(bl.error) : ""}` : "not set up (add AUTOSEO_RSS_URL)");
+    $("uptime").textContent = d.uptimeHours !== undefined ? "Server running for " + d.uptimeHours + " hours since the last restart or deploy." : "";
     const nt = d.notes || { total: 0, latest: [] };
     $("noteCount").textContent = nt.total ? "(" + nt.total + ")" : "";
-    $("notes").innerHTML = nt.latest.length ? nt.latest.map(f => `<div class="fb"><div class="meta">${esc(new Date(f.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))} · ${esc(f.from || "")}</div><div class="txt">${esc(f.text)}</div></div>`).join("") : '<p class="note">No feedback yet.</p>';
+    $("notes").innerHTML = nt.latest.length ? nt.latest.map(f => `<div class="fb"><div class="meta">${esc(new Date(f.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))} · ${esc(f.from || "")}${f.where === "answer" ? " · after a thumbs-down" : ""}</div><div class="txt">${esc(f.text)}</div>${f.id ? `<button class="x" type="button" data-del="${esc(f.id)}" aria-label="Delete this message">×</button>` : ""}</div>`).join("") : '<p class="note">No feedback yet.</p>';
+    $("clearNotes").classList.toggle("off", !nt.latest.length);
     $("providers").innerHTML = Object.entries(d.sharedToday).map(([name, p]) => {
       if (!p.configured) return `<div class="prov"><span class="name">${name}</span><span class="val">no shared key</span></div>`;
       const pct = p.cap > 0 ? Math.min(100, Math.round(p.used / p.cap * 100)) : 0;
@@ -223,6 +302,16 @@ $("login").onclick = async () => {
   $("key").value = "";
   if (!(await loadStats(key))) localStorage.removeItem(KEY_NAME);
 };
+async function delNotes(body) {
+  const k = getKey(); if (!k) return showSignIn();
+  try {
+    const r = await fetch("/api/admin/notes/delete", { method: "POST", headers: { "Content-Type": "application/json", "X-Admin-Key": k }, body: JSON.stringify(body) });
+    if (r.status === 401) { localStorage.removeItem(KEY_NAME); return showSignIn("That key was not accepted."); }
+    await loadStats(k);
+  } catch { $("dashMsg").textContent = "Could not delete. Try again."; }
+}
+$("clearNotes").onclick = () => { if (confirm("Delete all feedback messages? This can't be undone.")) delNotes({ all: true }); };
+$("notes").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (b) delNotes({ id: b.dataset.del }); });
 $("reload").onclick = () => { const k = getKey(); if (k) loadStats(k); else showSignIn(); };
 $("logout").onclick = () => { localStorage.removeItem(KEY_NAME); $("dashMsg").textContent = ""; showSignIn("Signed out."); };
 $("key").addEventListener("keydown", e => { if (e.key === "Enter") $("login").click(); });
