@@ -378,6 +378,14 @@
   .keyline { display:flex; align-items:center; gap:8px; min-width:0; }
   .minibtn { padding:4px 10px; border-radius:99px; background:var(--field); color:var(--ink); font-size:12px; font-weight:600; flex:none; }
   .minibtn:hover { background:var(--raised); }
+
+  /* Floating, see-through top bar (like the Claude app): chats scroll underneath and fade out. */
+  #app > .top { position:absolute; top:0; left:0; right:0; z-index:6; pointer-events:none; padding-bottom:26px;
+    background:linear-gradient(to bottom, var(--bg) 0%, var(--bg) calc(env(safe-area-inset-top,0px) + 30px), color-mix(in srgb, var(--bg) 70%, transparent) 70%, transparent 100%); }
+  #app > .top > * { pointer-events:auto; }
+  #app > .top .icon, #app > .top .pill { background:color-mix(in srgb, var(--raised) 72%, transparent); -webkit-backdrop-filter:blur(14px) saturate(1.4); backdrop-filter:blur(14px) saturate(1.4); }
+  #log { padding-top:calc(78px + env(safe-area-inset-top,0px)); }
+  @media (min-width:900px) { #log { padding-top:calc(92px + env(safe-area-inset-top,0px)); } }
 </style>
 </head>
 <body>
@@ -538,6 +546,7 @@
         <button type="button" class="opt" id="sideHome"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></span><span class="tx"><b>Add to Home Screen</b><small>Open AI Relay like an app</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" id="sideLink"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><span class="tx"><b>Link &amp; export</b><small>Public link, download or print</small></span><span class="chev" aria-hidden="true">›</span></button>
         <button type="button" class="opt" id="sideDevice"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><span class="tx"><b>Sign in on another device</b><small>Send yourself a sign-in link</small></span><span class="chev" aria-hidden="true">›</span></button>
+        <button type="button" class="opt" id="sideFeedback"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span><span class="tx"><b>Send feedback</b><small>Ideas, problems, anything</small></span><span class="chev" aria-hidden="true">›</span></button>
       </div>
       <button type="button" class="cancelbtn" data-close>Done</button>
     </div>
@@ -595,6 +604,20 @@
         <p class="hint">The AI uses this in every reply. Only you can see it.</p>
       </div>
       <button id="pSave" class="btn block" type="button">Save</button>
+      <button type="button" class="cancelbtn" data-close>Cancel</button>
+    </div>
+  </div>
+
+  <div id="fsheet" class="sheet">
+    <div class="bg" data-close></div>
+    <div class="sheetbody">
+      <div class="grip"></div>
+      <div class="sheettitle">Send feedback</div>
+      <div class="pform">
+        <label>What's on your mind?<textarea id="fbText" maxlength="1000" rows="4" placeholder="An idea, something that's broken, or what you like."></textarea></label>
+        <p class="hint">Goes straight to the AI Relay owner. Don't include passwords or your key.</p>
+      </div>
+      <button id="fbSend" class="btn block" type="button">Send</button>
       <button type="button" class="cancelbtn" data-close>Cancel</button>
     </div>
   </div>
@@ -938,6 +961,18 @@ function openProfile() {
   openSheetEl("psheet");
 }
 $("sideProfile").onclick = openProfile;
+$("sideFeedback").onclick = () => { openSheetEl("fsheet"); setTimeout(() => $("fbText").focus(), 350); };
+$("fbSend").onclick = async () => {
+  const text = $("fbText").value.trim();
+  if (text.length < 3) { toast("Write a little more first."); return; }
+  const b = $("fbSend"); b.disabled = true; b.textContent = "Sending…";
+  try {
+    const r = await api("/api/feedback-note", { text });
+    if (r && r.error) toast(r.error);
+    else { $("fbText").value = ""; closeSheets(); toast("Thanks! Your feedback was sent."); }
+  } catch { toast("Could not send. Try again in a moment."); }
+  finally { b.disabled = false; b.textContent = "Send"; }
+};
 $("pSave").onclick = async () => {
   try {
     const r = await api("/api/profile", { name: $("pName").value, style: $("pStyle").value });
@@ -1203,7 +1238,8 @@ function add(cls, text, meta, idx, quiet) {
 }
 const toBottom = () => { log.scrollTop = log.scrollHeight; };
 function pinTo(el) {
-  const top = el.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - 12;
+  const bar = document.querySelector("#app > .top");
+  const top = el.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - 12 - (bar ? bar.offsetHeight - 20 : 0);
   log.scrollTop = Math.max(0, top);
 }
 function redraw(animate) {
