@@ -48,6 +48,10 @@
   .tbl th:first-child, .tbl td:first-child { text-align:left; }
   .tbl td { text-align:right; padding:7px 4px; border-bottom:1px solid var(--line); }
   .tbl tr:last-child td { border-bottom:0; }
+  .fb { padding:12px 0; border-bottom:1px solid var(--line); }
+  .fb:last-child { border-bottom:0; }
+  .fb .meta { color:var(--mute); font-size:12px; margin-bottom:4px; }
+  .fb .txt { font-size:15px; white-space:pre-wrap; word-break:break-word; }
   .note { color:var(--mute); font-size:13px; line-height:1.6; }
   .note b { color:var(--ink); font-weight:600; }
   @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
@@ -98,6 +102,12 @@
       <h2>Last 7 days</h2>
       <p class="why">Keys can be higher than people when someone makes extra keys.</p>
       <table class="tbl"><thead><tr><th>Day</th><th>New people</th><th>New visitors</th><th>Keys</th></tr></thead><tbody id="week"></tbody></table>
+    </section>
+
+    <section class="card fade">
+      <h2>Feedback messages <span class="sub" id="noteCount" style="font-weight:400"></span></h2>
+      <p class="why">Sent from "Send feedback" in the app's Options. Newest first. The code shows which messages came from the same person.</p>
+      <div id="notes"></div>
     </section>
 
     <section class="card fade">
@@ -179,6 +189,10 @@ async function loadStats(key) {
         return `<tr><td>${label}</td><td>${n(w.newPeople)}</td><td>${n(w.newVisitors)}</td><td>${n(w.keys)}</td></tr>`;
       }).join("");
     }
+    const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const nt = d.notes || { total: 0, latest: [] };
+    $("noteCount").textContent = nt.total ? "(" + nt.total + ")" : "";
+    $("notes").innerHTML = nt.latest.length ? nt.latest.map(f => `<div class="fb"><div class="meta">${esc(new Date(f.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))} · ${esc(f.from || "")}</div><div class="txt">${esc(f.text)}</div></div>`).join("") : '<p class="note">No feedback yet.</p>';
     $("providers").innerHTML = Object.entries(d.sharedToday).map(([name, p]) => {
       if (!p.configured) return `<div class="prov"><span class="name">${name}</span><span class="val">no shared key</span></div>`;
       const pct = p.cap > 0 ? Math.min(100, Math.round(p.used / p.cap * 100)) : 0;
