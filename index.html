@@ -461,6 +461,12 @@
   @media (min-width:900px) { #app > #f.composer .box { background:#3c3c3c; } }
   html[data-theme="light"] #app > #f.composer .box { background:#f4f4f6; }
   #log { padding-bottom:calc(var(--ch, 130px) + 14px) !important; }
+
+  /* ---- Home Screen app: put the text box right at the bottom of the screen ---- */
+  @media (display-mode: standalone) {
+    #app { overflow:visible; }
+    #app > #f.composer { bottom:calc(-1 * var(--band, 0px)); }
+  }
 </style>
 </head>
 <body>
@@ -2054,9 +2060,23 @@ document.addEventListener("touchmove", e => {
 // Keep room at the bottom of the chat for the floating text box (it grows as you type).
 (function () {
   const f = document.getElementById("f"), app = document.getElementById("app");
-  const set = () => app.style.setProperty("--ch", f.offsetHeight + "px");
-  set();
+  const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  let band = 0;
+  // On some iPhones the Home Screen app's page stops a little above the bottom of the screen.
+  // Measure that gap and slide only the text box down into it (the page itself is not resized).
+  const measure = () => {
+    if (!standalone) return;
+    const portrait = window.innerHeight >= window.innerWidth;
+    const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+    if (!app.offsetHeight) return;
+    const gap = Math.round(full - (app.offsetTop + app.offsetHeight));
+    band = gap > 4 && gap < 120 ? gap : 0;
+    app.style.setProperty("--band", band + "px");
+  };
+  const set = () => { measure(); app.style.setProperty("--ch", Math.max(60, f.offsetHeight - band) + "px"); };
+  measure(); set();
   if (window.ResizeObserver) new ResizeObserver(set).observe(f); else window.addEventListener("resize", set);
+  window.addEventListener("orientationchange", () => setTimeout(() => { measure(); set(); }, 350));
 })();
 </script>
 </body>
