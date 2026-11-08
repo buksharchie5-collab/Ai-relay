@@ -185,7 +185,7 @@
 
   #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .3s ease; z-index:20; }
   #app.side-open #scrim, #app.drawer-open #scrim { opacity:1; pointer-events:auto; }
-  #side, #drawer { position:absolute; top:0; bottom:0; width:min(320px, 84%); z-index:30; display:flex; flex-direction:column; transition:transform .38s var(--ease); will-change:transform; }
+  #side, #drawer { position:absolute; top:0; bottom:0; width:min(320px, 84%); z-index:30; display:flex; flex-direction:column; transition:transform .38s var(--ease); }
   #side { left:0; background:#1b1b1b; border-right:1px solid var(--line); transform:translateX(-102%); padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px)); }
   #drawer { right:0; background:var(--panel); border-left:1px solid var(--line); transform:translateX(102%); padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px)); }
   #app.side-open #side { transform:none; }
@@ -235,6 +235,7 @@
   .sheet.show .bg { opacity:1; }
   .sheetbody { position:relative; width:100%; max-width:520px; margin:0 auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--panel); border-radius:18px 18px 0 0; transform:translateY(100%); opacity:0; transition:transform .38s var(--ease), opacity .3s ease; max-height:90vh; overflow-y:auto; will-change:transform; }
   .sheet.show .sheetbody { transform:none; opacity:1; }
+  #side, #drawer, .sheetbody { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; backface-visibility:visible; }
   .sheetbody .btn.block { border-bottom:0; padding:14px; font-size:16px; border-radius:14px; margin-top:12px; }
   .grip { width:40px; height:5px; border-radius:3px; background:#3a3a3a; margin:6px auto 12px; }
   .dropcard { margin:0 0 8px; padding:8px; background:var(--raised); border:1px solid var(--line); border-radius:22px; box-shadow:0 18px 40px rgba(0,0,0,.5); }
@@ -383,7 +384,7 @@
   #app > .top { position:absolute; top:0; left:0; right:0; z-index:6; pointer-events:none; padding-bottom:26px;
     background:linear-gradient(to bottom, var(--bg) 0%, var(--bg) calc(env(safe-area-inset-top,0px) + 30px), color-mix(in srgb, var(--bg) 70%, transparent) 70%, transparent 100%); }
   #app > .top > * { pointer-events:auto; }
-  #app > .top .icon, #app > .top .pill { background:color-mix(in srgb, var(--raised) 72%, transparent); -webkit-backdrop-filter:blur(14px) saturate(1.4); backdrop-filter:blur(14px) saturate(1.4); }
+  #app > .top .icon, #app > .top .pill { background:color-mix(in srgb, var(--raised) 92%, transparent); }
   #log { padding-top:calc(78px + env(safe-area-inset-top,0px)); }
   @media (min-width:900px) { #log { padding-top:calc(92px + env(safe-area-inset-top,0px)); } }
 
@@ -446,11 +447,6 @@
   .dot.bad { background:#ef4444; }
   #pill.bump { animation:pillBump .7s var(--ease); }
   @keyframes pillBump { 0% { transform:scale(1); } 30% { transform:scale(1.06); box-shadow:0 0 0 6px rgba(167,139,250,.18); } 100% { transform:scale(1); box-shadow:none; } }
-  /* ---- Try-this chips on the empty screen ---- */
-  .trychips { display:flex; flex-wrap:wrap; gap:8px; margin:-4px 0 14px; }
-  .trychips span { font-size:13px; color:var(--mute); align-self:center; margin-right:2px; }
-  .trychips button { padding:7px 12px; border-radius:99px; font-size:13.5px; background:color-mix(in srgb, var(--raised) 85%, var(--tint2)); border:1px solid color-mix(in srgb, var(--line) 70%, var(--tint2)); }
-  .trychips button:hover { border-color:var(--tint2); }
   /* ---- Add to Home Screen banner ---- */
   #a2hs { position:absolute; left:12px; right:12px; top:calc(70px + env(safe-area-inset-top,0px)); z-index:7; max-width:560px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:10px 10px 10px 14px; border-radius:18px;
     background:color-mix(in srgb, var(--panel) 88%, var(--tint2)); border:1px solid color-mix(in srgb, var(--line) 60%, var(--tint2)); box-shadow:0 10px 30px rgba(0,0,0,.3); animation:fadeIn .35s var(--ease) both; font-size:14px; }
@@ -520,7 +516,6 @@
   <main id="log"><div class="col" id="col">
     <div id="empty">
       <h2 id="greet">What can I help with?</h2>
-      <div class="trychips" id="trychips"><span>Try:</span><button type="button" data-try="web">🔍 Check a website</button><button type="button" data-try="pic">🖼️ Ask about a photo</button><button type="button" data-try="mem">🧠 Teach it about you</button></div>
       <div class="setup off" id="setup">
         <strong>Get more messages in 2 minutes</strong>
         <ol>
@@ -1622,15 +1617,6 @@ function shuffleSugg() {
   $("sugg").innerHTML = pool.slice(0, 4).map(([e, t]) => `<button type="button" data-s="${esc(t)}"><span class="se" aria-hidden="true">${e}</span>${esc(t)}</button>`).join("");
 }
 shuffleSugg();
-$("trychips").onclick = e => {
-  const b = e.target.closest("[data-try]"); if (!b || busy) return;
-  const k = b.dataset.try;
-  if (k === "pic") { $("imgIn").click(); return; }
-  q.value = k === "web" ? "Is this website safe? " : "Remember that I ";
-  q.dispatchEvent(new Event("input")); q.focus();
-  try { q.setSelectionRange(q.value.length, q.value.length); } catch {}
-  if (k === "web") toast("Paste the website link, then send.");
-};
 $("sugg").onclick = e => { const b = e.target.closest("[data-s]"); const s = b && b.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
 
 col.addEventListener("click", async e => {
