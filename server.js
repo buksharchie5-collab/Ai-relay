@@ -257,6 +257,7 @@ const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|curl|wget|pyt
 function countVisit(req) {
   const ua = String(req.headers["user-agent"] || "");
   if (!ua || BOT_UA.test(ua)) return;
+  if (/[?&]ref=invite\b/.test(req.url)) bump("invitevisit");
   const ip = anon("ip", clientIp(req));
   Promise.all([firstSeen("visitor", ip), seenToday("visitor", ip)]).catch(() => {});
 }
@@ -312,7 +313,7 @@ function bumpTotal(name) {
 async function bizStats() {
   const d = today(), days = lastDays(7);
   const toObj = (arr) => { const o = {}; for (let i = 0; i + 1 < (arr || []).length; i += 2) o[arr[i]] = Number(arr[i + 1]) || 0; return o; };
-  const names = ["msgs", "fail", "limit", "img", "web", "share", "note", "ownkey"];
+  const names = ["msgs", "fail", "limit", "img", "web", "share", "note", "ownkey", "invite", "invitevisit", "switch"];
   if (USE_REDIS) {
     const cmds = names.map((n) => ["GET", "stats:biz:" + n + ":" + d]);
     cmds.push(["HGETALL", "stats:biz:prov:" + d], ["GET", "stats:biz:ownkey:total"], ["GET", "stats:biz:share:total"]);
@@ -438,12 +439,37 @@ function limitOf(u, name) {
   return L;
 }
 
+// --- Memory: short facts the person shared, remembered across chats (they can see, delete or turn it off) ---
+const MEM_MAX = 30;
+const memOf = (u) => (u.mem ||= { on: true, items: [] });
+const MEM_TAG = /\s*\[\[\s*remember\s*:\s*([^\]\n]{2,200})\]\]/gi;
+const MEM_BAD = /password|passcode|\bpin\b|api key|secret|\bfa-|credit card|bank|account number|sort code|ssn|social security|diagnos|medication|illness|disease/i;
+function addMemory(u, text) {
+  const m = memOf(u);
+  const t = String(text || "").replace(/\s+/g, " ").trim().replace(/^[-•]\s*/, "").slice(0, 150);
+  if (t.length < 3 || MEM_BAD.test(t) || /\d{6,}/.test(t)) return null;
+  if (m.items.some((x) => x.toLowerCase() === t.toLowerCase())) return null;
+  m.items.push(t);
+  if (m.items.length > MEM_MAX) m.items.splice(0, m.items.length - MEM_MAX);
+  return t;
+}
+// Pulls [[remember: ...]] lines out of an answer, saves them, and returns the cleaned answer.
+function takeMemories(u, reply) {
+  const added = [];
+  const clean = String(reply || "").replace(MEM_TAG, (all, fact) => { if (memOf(u).on) { const a = addMemory(u, fact); if (a) added.push(a); } return ""; }).trimEnd();
+  return { clean, added };
+}
 function profileSystem(u) {
   const p = u.profile || {};
   const parts = [];
   if (p.name) parts.push(`The person you're helping is called ${p.name}.`);
   if (p.style) parts.push(`How to respond: ${p.style}`);
-  return parts.join(" ");
+  const m = memOf(u);
+  if (m.on) {
+    if (m.items.length) parts.push("Things you remember about this person from earlier chats (use them only when relevant, don't list them back unprompted):\n- " + m.items.join("\n- "));
+    parts.push("If the person tells you a clear, lasting fact or preference about themselves that would help in future chats (for example their name, job, hobbies, what they're studying, or how they like answers), add one line at the very end of your reply in exactly this form: [[remember: short fact in the third person]]. Only for things they actually said. Never for passwords, keys, money, health or other private details. Don't mention this format.");
+  }
+  return parts.join("\n\n");
 }
 const withSystem = (sys, msgs) => (sys ? [{ role: "system", content: sys }, ...msgs] : msgs);
 
@@ -531,7 +557,9 @@ async function findNextModel(name, key, skip) {
 const usage = (u, n) => (u.usage[n] ||= { ok: 0, fail: 0, tokens: 0, left: null });
 const resting = (u, n) => (u.until[n] || 0) > Date.now();
 function ordered(u) {
-  const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n));
+  const pri = Array.isArray(u.order) ? u.order : [];
+  const rank = (n) => { const i = pri.indexOf(n); return i === -1 ? 100 + Object.keys(PROVIDERS).indexOf(n) : i; };
+  const have = Object.keys(PROVIDERS).filter((n) => u.keys[n] || envKey(n)).sort((a, b) => rank(a) - rank(b));
   return have.includes(u.selected) ? [u.selected, ...have.filter((n) => n !== u.selected)] : have;
 }
 function planFor(u) {
@@ -776,8 +804,8 @@ async function askStream(u, messages, res, signal, extraSys) {
       if (!img) models[name] = got.model;
       s.ok++; s.tokens += got.tokens; u.current = name; u.reason[name] = "";
       const fellBack = u.selected !== "auto" && u.selected !== name;
-      ev({ type: "done", provider: name, model: got.model, fellBack, shared: usingShared });
-      return { ok: true, reply: got.reply, tokens: got.tokens, provider: name, model: got.model, fellBack };
+      ev({ type: "done", provider: name, model: got.model, fellBack, shared: usingShared, tried: tried.slice(-3) });
+      return { ok: true, reply: got.reply, tokens: got.tokens, provider: name, model: got.model, fellBack, switched: tried.length > 0 };
     }
 
     if (img) { tried.push(`${name}: ${last ? last.reason : "picture not understood"}`); continue; }
@@ -811,6 +839,8 @@ function status(u) {
     web: !!TAVILY_KEY,
     vision: Object.keys(PROVIDERS).some((n) => visionModel(n) && (u.keys[n] || (envKey(n) && dailyCap(n) > 0))),
     profile: u.profile || { name: "", style: "" },
+    memory: { on: memOf(u).on, items: memOf(u).items },
+    order: ordered(u),
     providers: Object.entries(PROVIDERS).map(([name, p]) => {
       const s = usage(u, name), own = !!u.keys[name];
       const L = own ? null : limitOf(u, name);
@@ -1283,6 +1313,23 @@ async function route(req, res) {
 
   if (req.url === "/api/status") { countActive(req); return send(res, 200, status(u)); }
 
+  if (req.url === "/api/order" && Array.isArray(body.order)) {
+    u.order = body.order.filter((n) => PROVIDERS[n]).filter((n, i, a) => a.indexOf(n) === i);
+    await saveUser(token, u);
+    return send(res, 200, status(u));
+  }
+  if (req.url === "/api/invite") { bump("invite"); return send(res, 200, { ok: true }); }
+
+  if (req.url === "/api/memory") {
+    const m = memOf(u), a = String(body.action || "");
+    if (a === "toggle") m.on = body.on !== false;
+    else if (a === "clear") m.items = [];
+    else if (a === "delete") { const t = String(body.text || ""); const i = m.items.indexOf(t); if (i !== -1) m.items.splice(i, 1); }
+    else if (a === "add") { if (!addMemory(u, body.text)) return send(res, 400, { error: "That can't be saved. Keep it short, and leave out private details like passwords or health." }); }
+    await saveUser(token, u);
+    return send(res, 200, { memory: { on: m.on, items: m.items } });
+  }
+
   if (req.url === "/api/profile") {
     u.profile = {
       name: String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 40),
@@ -1437,9 +1484,13 @@ async function route(req, res) {
       let extra = "";
       if (body.web === true && TAVILY_KEY) extra = await webExtra(u, res, body.query || textOf((body.messages[body.messages.length - 1] || {}).content));
       const out = await askStream(u, body.messages, res, ac.signal, extra);
-      if (out.ok) { bump("msgs"); bump("prov", out.provider); if (imageOf(body.messages)) bump("img"); }
+      if (out.ok) { bump("msgs"); bump("prov", out.provider); if (imageOf(body.messages)) bump("img"); if (out.switched) bump("switch"); }
       else if (!out.aborted) bump(out.limited ? "limit" : "fail");
-      if (out.ok) putChat(u, body.chatId, [...body.messages, { role: "assistant", content: out.reply, meta: out.provider + " · " + out.model }]);
+      if (out.ok) {
+        const { clean, added } = takeMemories(u, out.reply);
+        if (added.length && !res.writableEnded && !res.destroyed) res.write(JSON.stringify({ type: "memory", added }) + "\n");
+        putChat(u, body.chatId, [...body.messages, { role: "assistant", content: clean, meta: out.provider + " · " + out.model }]);
+      }
     } finally {
       await saveUser(token, u);
       res.end();
