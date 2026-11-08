@@ -463,10 +463,8 @@
   #log { padding-bottom:calc(var(--ch, 130px) + 14px) !important; }
 
   /* ---- Home Screen app: put the text box right at the bottom of the screen ---- */
-  @media (display-mode: standalone) {
-    #app { overflow:visible; }
-    #app > #f.composer { bottom:calc(-1 * var(--band, 0px)); }
-  }
+  /* When the page already stops above the home bar, the extra bottom padding for the home bar isn't needed. */
+  #app.short-screen > #f.composer { padding-bottom:6px; }
 </style>
 </head>
 <body>
@@ -2070,8 +2068,8 @@ document.addEventListener("touchmove", e => {
     const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
     if (!app.offsetHeight) return;
     const gap = Math.round(full - (app.offsetTop + app.offsetHeight));
-    band = gap > 4 && gap < 120 ? gap : 0;
-    app.style.setProperty("--band", band + "px");
+    band = 0;
+    app.classList.toggle("short-screen", gap > 20 && gap < 120);
   };
   const set = () => { measure(); app.style.setProperty("--ch", Math.max(60, f.offsetHeight - band) + "px"); };
   measure(); set();
