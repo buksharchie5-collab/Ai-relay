@@ -266,6 +266,8 @@ async function loadStats(key) {
       frow("Public share links made", `${nn(T.share)} today · ${nn(bz.sharesTotal)} all time`) +
       frow("Own AI keys added", `${nn(T.ownkey)} today · ${nn(bz.ownKeysTotal)} all time`) +
       frow("Feedback messages", `${nn(T.note)} today`) +
+      frow("Auto-switches", `${nn(T.switch)} today (an AI ran out and the next one answered)`) +
+      frow("Invites sent", `${nn(T.invite)} today · ${nn(T.invitevisit)} visits from invite links`) +
       frow("Blog", bl.configured ? `${nn(bl.posts)} posts${bl.lastSync ? " · checked " + new Date(bl.lastSync).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}${bl.error ? " · problem: " + esc(bl.error) : ""}` : "not set up (add AUTOSEO_RSS_URL)");
     $("uptime").textContent = d.uptimeHours !== undefined ? "Server running for " + d.uptimeHours + " hours since the last restart or deploy." : "";
     const nt = d.notes || { total: 0, latest: [] };
