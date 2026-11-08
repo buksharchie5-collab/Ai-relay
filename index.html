@@ -386,6 +386,76 @@
   #app > .top .icon, #app > .top .pill { background:color-mix(in srgb, var(--raised) 72%, transparent); -webkit-backdrop-filter:blur(14px) saturate(1.4); backdrop-filter:blur(14px) saturate(1.4); }
   #log { padding-top:calc(78px + env(safe-area-inset-top,0px)); }
   @media (min-width:900px) { #log { padding-top:calc(92px + env(safe-area-inset-top,0px)); } }
+
+  /* ---- A little more life: soft blue-violet from the sparkle logo (no loud colours) ---- */
+  :root { --tint1:#60a5fa; --tint2:#a78bfa; --glowA:rgba(96,165,250,.085); --glowB:rgba(167,139,250,.075); }
+  html[data-theme="light"] { --glowA:rgba(96,165,250,.10); --glowB:rgba(167,139,250,.09); }
+  #app { background:
+    radial-gradient(70% 38% at 50% 108%, var(--glowB), transparent 70%),
+    radial-gradient(55% 32% at 0% 62%, var(--glowA), transparent 70%),
+    var(--bg); }
+  #empty h2, #greet { background:linear-gradient(100deg, var(--ink) 45%, color-mix(in srgb, var(--tint2) 45%, var(--ink)) 85%, color-mix(in srgb, var(--tint1) 50%, var(--ink))); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .me .mtxt { background:color-mix(in srgb, var(--field) 86%, var(--tint1)); }
+  .box { border-color:color-mix(in srgb, #404040 80%, var(--tint2)); }
+  .box:focus-within { border-color:color-mix(in srgb, #3a3a3a 55%, var(--tint2)); box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 3px rgba(167,139,250,.16), 0 0 28px rgba(96,165,250,.10); }
+  #send:not(:disabled) { background:linear-gradient(135deg, #e8eeff, #ece4ff); }
+  .bot .body li::marker { color:color-mix(in srgb, var(--tint1) 60%, var(--tint2)); }
+  .bot .body a { color:#9bb8ff; }
+  .sugg button { transition:color .2s ease, padding-left .25s var(--ease); }
+  .sugg button:hover { padding-left:8px; }
+  .sugg button .se { display:inline-block; width:26px; opacity:.9; }
+  .citem.cur { background:color-mix(in srgb, var(--raised) 85%, var(--tint2)); }
+  .acts2 button.on { color:var(--ink); }
+  .orb { background:radial-gradient(circle at 35% 35%, #c7d6ff, var(--tint1) 55%, var(--tint2)); }
+  html[data-theme="light"] .box { border-color:color-mix(in srgb, #dcdce1 80%, var(--tint2)); }
+  html[data-theme="light"] .me .mtxt { background:color-mix(in srgb, var(--field) 85%, var(--tint1)); }
+  html[data-theme="light"] #send:not(:disabled) { background:linear-gradient(135deg, #1e2a4a, #2e2350); }
+  html[data-theme="light"] .bot .body a { color:#3b5ccc; }
+  html[data-theme="light"] .box:focus-within { box-shadow:0 8px 24px rgba(0,0,0,.08), 0 0 0 3px rgba(167,139,250,.18); }
+
+  /* ---- Home Screen app: hide the strip under the app when a menu or panel is open (no size changes) ---- */
+  @media (display-mode: standalone) {
+    html, body { transition:background-color .3s ease; }
+    html:has(#app.side-open), html:has(#app.side-open) body, html:has(#app.drawer-open), html:has(#app.drawer-open) body { background:color-mix(in srgb, var(--bg) 45%, #000); }
+    #cards { padding-bottom:28px; }
+  }
+
+  /* ---- Memory list in Your profile ---- */
+  .memhead { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:18px 0 6px; }
+  .memhead b { font-size:15px; }
+  .switch { position:relative; width:46px; height:28px; flex:none; border-radius:99px; background:var(--field); border:1px solid var(--line); transition:background-color .2s ease; }
+  .switch::after { content:""; position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%; background:#fff; transition:transform .25s var(--ease); }
+  .switch.on { background:linear-gradient(135deg, var(--tint1), var(--tint2)); border-color:transparent; }
+  .switch.on::after { transform:translateX(18px); }
+  .memlist { max-height:30vh; overflow-y:auto; margin:6px 0 4px; }
+  .memitem { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .memitem span { flex:1; min-width:0; word-break:break-word; }
+  .memitem button { flex:none; width:26px; height:26px; border-radius:50%; color:var(--mute); font-size:17px; line-height:1; }
+  .memitem button:hover { background:var(--field); color:var(--ink); }
+  .memadd { display:flex; gap:8px; margin-top:8px; }
+  .memadd input { flex:1; min-width:0; padding:10px 12px; background:var(--field); border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  .linkbtn { color:var(--mute); font-size:13px; text-decoration:underline; text-underline-offset:2px; margin-top:8px; }
+
+  /* ---- AI switching tools ---- */
+  .dtools { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .pc .pname small { display:block; font-size:12px; font-weight:500; color:var(--mute); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pc .pname small.low { color:var(--warn); }
+  .pc .rank { flex:none; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--field); color:var(--mute); }
+  .pc .mv { flex:none; width:32px; height:32px; border-radius:50%; display:grid; place-items:center; background:var(--field); color:var(--ink); font-size:16px; }
+  .pc .mv:disabled { opacity:.3; }
+  .dot.bad { background:#ef4444; }
+  #pill.bump { animation:pillBump .7s var(--ease); }
+  @keyframes pillBump { 0% { transform:scale(1); } 30% { transform:scale(1.06); box-shadow:0 0 0 6px rgba(167,139,250,.18); } 100% { transform:scale(1); box-shadow:none; } }
+  /* ---- Try-this chips on the empty screen ---- */
+  .trychips { display:flex; flex-wrap:wrap; gap:8px; margin:-4px 0 14px; }
+  .trychips span { font-size:13px; color:var(--mute); align-self:center; margin-right:2px; }
+  .trychips button { padding:7px 12px; border-radius:99px; font-size:13.5px; background:color-mix(in srgb, var(--raised) 85%, var(--tint2)); border:1px solid color-mix(in srgb, var(--line) 70%, var(--tint2)); }
+  .trychips button:hover { border-color:var(--tint2); }
+  /* ---- Add to Home Screen banner ---- */
+  #a2hs { position:absolute; left:12px; right:12px; top:calc(70px + env(safe-area-inset-top,0px)); z-index:7; max-width:560px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:10px 10px 10px 14px; border-radius:18px;
+    background:color-mix(in srgb, var(--panel) 88%, var(--tint2)); border:1px solid color-mix(in srgb, var(--line) 60%, var(--tint2)); box-shadow:0 10px 30px rgba(0,0,0,.3); animation:fadeIn .35s var(--ease) both; font-size:14px; }
+  #a2hs .t { flex:1; min-width:0; line-height:1.35; }
+  #a2hs .x { width:30px; height:30px; border-radius:50%; color:var(--mute); font-size:18px; flex:none; }
 </style>
 </head>
 <body>
@@ -450,6 +520,7 @@
   <main id="log"><div class="col" id="col">
     <div id="empty">
       <h2 id="greet">What can I help with?</h2>
+      <div class="trychips" id="trychips"><span>Try:</span><button type="button" data-try="web">🔍 Check a website</button><button type="button" data-try="pic">🖼️ Ask about a photo</button><button type="button" data-try="mem">🧠 Teach it about you</button></div>
       <div class="setup off" id="setup">
         <strong>Get more messages in 2 minutes</strong>
         <ol>
@@ -459,12 +530,7 @@
         </ol>
         <button type="button" class="btn small" id="openSetup">Set up my keys</button>
       </div>
-      <div class="sugg" id="sugg">
-        <button type="button" data-s="Explain something in simple words">Explain something in simple words</button>
-        <button type="button" data-s="Help me write a polite email">Help me write a polite email</button>
-        <button type="button" data-s="Give me a quick dinner idea">Give me a quick dinner idea</button>
-        <button type="button" data-s="Quiz me on world capitals">Quiz me on world capitals</button>
-      </div>
+      <div class="sugg" id="sugg"></div>
     </div>
   </div></main>
 
@@ -494,6 +560,7 @@
     <button class="nav" id="sideNew" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>New chat</button>
     <button class="nav" id="sideProfile" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>Your profile</button>
     <button class="nav" id="sideShare" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M5 13v7h14v-7"/></svg></span>Share chat</button>
+    <button class="nav" id="sideInvite" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/></svg></span>Invite a friend</button>
     <button class="nav" id="sideFeedback" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>Send feedback</button>
     <button class="nav" id="sideOpts" type="button"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span>Options</button>
     <div class="label">Your chats</div>
@@ -504,8 +571,8 @@
 
   <aside id="drawer" aria-label="AI providers">
     <div class="dhead"><h2>AI providers</h2><button id="close" class="btn ghost small" type="button">Done</button></div>
-    <div class="seg"><button id="auto" type="button" class="btn small">Auto-switch</button></div>
-    <p class="hint">Auto-switch tries each AI in turn when one runs out. Pin one to use only that AI.</p>
+    <div class="dtools"><button id="auto" type="button" class="btn small">Auto-switch</button><button id="testAll" type="button" class="btn small ghost">Test all</button><button id="orderBtn" type="button" class="btn small ghost">Change order</button></div>
+    <p class="hint" id="dhint">Auto-switch tries your AIs in order, top first. When one runs out, the next one answers.</p>
     <div id="cards" style="overflow-y:auto;flex:1"></div>
   </aside>
 
@@ -602,6 +669,11 @@
         <label>Your name<input id="pName" maxlength="40" placeholder="e.g. Sam" autocomplete="off"></label>
         <label>How should the AI talk to you?<textarea id="pStyle" maxlength="300" rows="3" placeholder="e.g. Keep answers short and friendly. I'm studying biology."></textarea></label>
         <p class="hint">The AI uses this in every reply. Only you can see it.</p>
+        <div class="memhead"><b>Memory</b><button id="memSwitch" class="switch" type="button" role="switch" aria-checked="true" aria-label="Remember things about me"></button></div>
+        <p class="hint" id="memHint">The AI remembers useful things you tell it, across all your chats. Tap × to forget one.</p>
+        <div class="memlist" id="memList"></div>
+        <div class="memadd"><input id="memNew" maxlength="150" placeholder="Add something, e.g. I'm learning Java" autocomplete="off"><button id="memAdd" class="btn small" type="button">Add</button></div>
+        <button id="memClear" class="linkbtn" type="button">Forget everything</button>
       </div>
       <button id="pSave" class="btn block" type="button">Save</button>
       <button type="button" class="cancelbtn" data-close>Cancel</button>
@@ -658,7 +730,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const SEND_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 const STOP_ICON = '<svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
 let history = [], chatId = newId(), st = null, busy = false, editing = null, openedAt = 0;
-let abortCtl = null, profile = { name: "", style: "" };
+let abortCtl = null, profile = { name: "", style: "" }, memory = { on: true, items: [] };
+// Removes the hidden [[remember: ...]] note the AI adds; while streaming it also hides a half-written one.
+function memClean(t, live) {
+  t = String(t || "").replace(/\s*\[\[\s*remember\s*:[^\]\n]*\]\]/gi, "");
+  if (live) { const k = t.lastIndexOf("[["); if (k !== -1 && t.indexOf("]]", k) === -1 && /^\[\[\s*r?e?m?e?m?b?e?r?\s*:?/i.test(t.slice(k, k + 12))) t = t.slice(0, k); if (t.endsWith("[")) t = t.slice(0, -1); }
+  return live ? t : t.trimEnd();
+}
 const testResult = {};
 
 function play(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
@@ -727,6 +805,7 @@ async function refresh() {
   try {
     st = await api("/api/status");
     if (st.profile) profile = st.profile;
+    if (st.memory) memory = st.memory;
     paintWeb();
     updateGreeting();
     render();
@@ -900,19 +979,33 @@ function render() {
   $("setup").classList.add("off");
   $("auto").className = "btn small " + (st.selected === "auto" ? "on" : "ghost");
   $("acctline").textContent = "Key " + (getKey() || "").slice(0, 7) + "…";
-  $("cards").innerHTML = st.providers.map(p => {
-    const open = openCards.has(p.name);
+  const ord = st.order || [];
+  const sorted = st.providers.slice().sort((a, b) => {
+    const ia = ord.indexOf(a.name), ib = ord.indexOf(b.name);
+    return (a.hasKey ? 0 : 1000) + (ia === -1 ? 500 : ia) - ((b.hasKey ? 0 : 1000) + (ib === -1 ? 500 : ib));
+  });
+  const liveNames = sorted.filter(p => p.hasKey).map(p => p.name);
+  $("orderBtn").textContent = orderMode ? "Done ordering" : "Change order";
+  $("orderBtn").className = "btn small " + (orderMode ? "on" : "ghost");
+  $("dhint").textContent = orderMode ? "Use the arrows to set your order. Auto-switch tries the top one first." : "Auto-switch tries your AIs in order, top first. When one runs out, the next one answers.";
+  $("cards").innerHTML = sorted.map(p => {
+    const open = openCards.has(p.name) && !orderMode;
     const keyLink = `<a href="${p.keyUrl}" target="_blank" rel="noopener">${p.paid ? "Get a key (needs billing)" : "Get a key"}</a>`;
     const keyBox = `<div class="row" style="margin-top:8px"><input type="password" placeholder="Paste your own key" data-in="${p.name}" autocomplete="off" aria-label="${p.name} key"><button class="btn small" data-save="${p.name}">Save</button></div><div class="sub" style="margin-top:6px">${keyLink}</div>`;
     const chev = `<button type="button" class="pchev${open ? " open" : ""}" data-tog="${p.name}" aria-label="${open ? "Hide" : "Show"} ${p.name} details" aria-expanded="${open}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>`;
     if (!p.hasKey) return `<div class="pc"><div class="h ph" data-tog="${p.name}"><span class="dot"></span><span class="pname">${p.name}${p.paid ? " · paid" : ""}</span>${chev}</div>
       <div class="pbody${open ? "" : " off"}"><div class="sub">${p.model}</div>${keyBox}</div></div>`;
     const on = p.name === st.selected, rest = p.coolingDown;
+    const lf = leftFor(p), pos = liveNames.indexOf(p.name);
+    const sub = `<small class="${lf.low ? "low" : ""}">${esc(lf.text)}</small>`;
+    const dotCls = health[p.name] === false ? "bad" : rest ? "warn" : "ok";
+    if (orderMode) return `<div class="pc"><div class="h"><span class="rank">${pos + 1}</span><span class="pname">${p.name}${sub}</span>
+      <button type="button" class="mv" data-mv="${p.name}" data-dir="-1" aria-label="Move ${p.name} up" ${pos === 0 ? "disabled" : ""}>↑</button><button type="button" class="mv" data-mv="${p.name}" data-dir="1" aria-label="Move ${p.name} down" ${pos === liveNames.length - 1 ? "disabled" : ""}>↓</button></div></div>`;
     const stTxt = rest ? `Resting · back in ${p.resumesInSec}s (${esc(p.reason)})` : p.name === st.current ? "Active · answered last" : "Ready";
     const left = p.left !== null ? ` · ${nf(p.left)} requests left` : "";
     const keyPart = p.own ? `<div class="sub" style="margin-top:6px">Using your own key</div>` : keyBox;
     const tr = testResult[p.name] ? `<div class="tres">${esc(testResult[p.name])}</div>` : "";
-    return `<div class="pc ${on ? "sel" : ""}"><div class="h ph" data-tog="${p.name}"><span class="dot ${rest ? "warn" : "ok"}"></span><span class="pname">${p.name}${p.paid ? " · paid" : ""}</span>
+    return `<div class="pc ${on ? "sel" : ""}"><div class="h ph" data-tog="${p.name}"><span class="dot ${dotCls}"></span><span class="pname">${p.name}${p.paid ? " · paid" : ""}${sub}</span>
       <button class="btn small ${on ? "on" : "ghost"} ppin" data-pin="${p.name}">${on ? "Pinned" : "Use this one"}</button>${chev}</div>
       <div class="pbody${open ? "" : " off"}"><div class="sub">${p.model}</div>
       <div class="st">${stTxt}</div><div class="sub">${nf(p.requests)} requests · ${nf(p.tokens)} tokens · ${p.errors} errors${left}</div>${keyPart}${tr}
@@ -920,8 +1013,52 @@ function render() {
   }).join("");
 }
 
-var openCards = new Set();
+var openCards = new Set(), orderMode = false, health = {};
+// How many messages are left on an AI right now, in plain words.
+function leftFor(p) {
+  if (p.coolingDown) return { text: "Resting · " + Math.max(1, Math.ceil(p.resumesInSec / 60)) + " min", low: true };
+  if (p.own) return p.left !== null && p.left !== undefined ? { text: nf(p.left) + " left on your key", low: p.left < 5 } : { text: "Your own key", low: false };
+  const L = (st && st.limits) || {};
+  const nums = [];
+  if (p.usedThisHour !== null && p.usedThisHour !== undefined && L.perHour) nums.push(L.perHour - p.usedThisHour);
+  if (p.usedToday !== null && p.usedToday !== undefined && L.perDay) nums.push(L.perDay - p.usedToday);
+  if (p.sharedLeftToday !== null && p.sharedLeftToday !== undefined) nums.push(p.sharedLeftToday);
+  if (!nums.length) return { text: "Ready", low: false };
+  const n = Math.max(0, Math.min(...nums));
+  return { text: n === 0 ? "Used up for now" : n + " message" + (n === 1 ? "" : "s") + " left", low: n <= 3 };
+}
+async function moveProvider(name, dir) {
+  const names = (st.order || []).filter(n => st.providers.some(p => p.name === n && p.hasKey));
+  const i = names.indexOf(name), j = i + dir;
+  if (i === -1 || j < 0 || j >= names.length) return;
+  [names[i], names[j]] = [names[j], names[i]];
+  st.order = names; render();
+  try { st = await api("/api/order", { order: names }); render(); } catch (e) { toast(e.message || "Could not save the order."); }
+}
+async function testAll() {
+  const live = st.providers.filter(p => p.hasKey && !(p.paid && !p.own));
+  if (!live.length) { toast("Add a key first."); return; }
+  const b = $("testAll"); b.disabled = true; b.textContent = "Testing…";
+  live.forEach(p => { testResult[p.name] = "Testing…"; });
+  render();
+  let good = 0;
+  await Promise.all(live.map(async p => {
+    try {
+      const r = await api("/api/test", { provider: p.name });
+      health[p.name] = !!r.ok; if (r.ok) good++;
+      testResult[p.name] = r.ok ? `Works. It replied "${r.reply}" using ${r.model}.` : "Not working: " + r.error;
+    } catch (err) { health[p.name] = false; testResult[p.name] = "Not working: " + err.message; }
+    render();
+  }));
+  b.disabled = false; b.textContent = "Test all";
+  toast(good === live.length ? `All ${good} AIs are working.` : `${good} of ${live.length} AIs are working. Open the red ones to see why.`);
+  try { st = await api("/api/status"); render(); } catch {}
+}
+$("testAll").onclick = testAll;
+$("orderBtn").onclick = () => { orderMode = !orderMode; render(); };
 $("drawer").addEventListener("click", async e => {
+  const mv = e.target.closest("[data-mv]");
+  if (mv) { moveProvider(mv.dataset.mv, Number(mv.dataset.dir)); return; }
   const btn = e.target.closest("[data-pin],[data-test],[data-del],[data-save]");
   const t = btn ? btn.dataset : {};
   if (!btn) {
@@ -935,8 +1072,9 @@ $("drawer").addEventListener("click", async e => {
       testResult[t.test] = "Testing…"; render();
       try {
         const r = await api("/api/test", { provider: t.test });
+        health[t.test] = !!r.ok;
         testResult[t.test] = r.ok ? `Works. It replied "${r.reply}" using ${r.model}.` : "Not working: " + r.error;
-      } catch (err) { testResult[t.test] = "Not working: " + err.message; }
+      } catch (err) { health[t.test] = false; testResult[t.test] = "Not working: " + err.message; }
       render();
     }
     else if (t.del) { st = await api("/api/key", { provider: t.del, key: "" }); delete testResult[t.del]; render(); }
@@ -955,12 +1093,39 @@ function renderUsage() {
 }
 async function openUsage() { openSheetEl("usage"); renderUsage(); await refresh(); renderUsage(); }
 
+function paintMemory() {
+  $("memSwitch").classList.toggle("on", memory.on);
+  $("memSwitch").setAttribute("aria-checked", memory.on ? "true" : "false");
+  $("memHint").textContent = memory.on ? "The AI remembers useful things you tell it, across all your chats. Tap × to forget one." : "Memory is off. The AI won't remember or use anything from past chats.";
+  $("memList").innerHTML = memory.items.length ? memory.items.slice().reverse().map(t => `<div class="memitem"><span>${esc(t)}</span><button type="button" data-forget="${esc(t)}" aria-label="Forget this">×</button></div>`).join("") : `<p class="hint" style="margin:6px 0">Nothing remembered yet.</p>`;
+  $("memClear").classList.toggle("off", !memory.items.length);
+  $("memList").classList.toggle("off", !memory.on && !memory.items.length);
+}
+async function memAction(body) {
+  try { const r = await api("/api/memory", body); if (r && r.error) { toast(r.error); return false; } if (r && r.memory) memory = r.memory; paintMemory(); return true; }
+  catch (e) { toast(e.message || "Could not update memory."); return false; }
+}
+function forgetMemory(t) { return memAction({ action: "delete", text: t }).then(ok => { if (ok) toast("Forgotten."); }); }
+$("memSwitch").onclick = () => memAction({ action: "toggle", on: !memory.on });
+$("memList").onclick = e => { const b = e.target.closest("[data-forget]"); if (b) forgetMemory(b.dataset.forget); };
+$("memAdd").onclick = async () => { const t = $("memNew").value.trim(); if (!t) return; if (await memAction({ action: "add", text: t })) $("memNew").value = ""; };
+$("memNew").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("memAdd").click(); } });
+$("memClear").onclick = () => { memAction({ action: "clear" }).then(ok => { if (ok) toast("Memory cleared."); }); };
 function openProfile() {
   $("pName").value = profile.name || "";
   $("pStyle").value = profile.style || "";
+  paintMemory();
   openSheetEl("psheet");
 }
 $("sideProfile").onclick = openProfile;
+$("sideInvite").onclick = async () => {
+  closeAll();
+  const url = location.origin + "/?ref=invite";
+  const text = "I've been using AI Relay, a free AI chat. When one AI runs out it switches to the next, so it keeps going. Try it:";
+  api("/api/invite", {}).catch(() => {});
+  if (navigator.share) { try { await navigator.share({ title: "AI Relay", text, url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(text + " " + url); toast("Invite copied. Paste it to a friend."); } catch { toast(url); }
+};
 let fbWhere = "menu";
 function openFeedback(where, prefill) {
   fbWhere = where || "menu";
@@ -1219,7 +1384,7 @@ async function openChat(id) {
     redraw(true); closeAll(); loadChats();
   } catch {}
 }
-function newChat() { history = []; chatId = newId(); editing = null; cancelEdit(false); redraw(true); closeAll(); loadChats(); }
+function newChat() { history = []; chatId = newId(); editing = null; cancelEdit(false); shuffleSugg(); redraw(true); closeAll(); loadChats(); }
 async function syncChat() {
   try { await api("/api/chats/sync", { id: chatId, messages: history.map(({ role, content, meta }) => ({ role, content, meta })) }); loadChats(); } catch {}
 }
@@ -1231,7 +1396,7 @@ function add(cls, text, meta, idx, quiet) {
   if (cls === "bot") {
     const prev = idx !== undefined ? history[idx - 1] : null;
     const asGrid = !!(prev && prev.role === "user" && TABLE_ASK.test(String(prev.content)));
-    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="up" aria-label="Good answer">\ud83d\udc4d</button><button type="button" data-act="down" aria-label="Bad answer">\ud83d\udc4e</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
+    d.innerHTML = `<div class="body">${renderBody(text, asGrid)}</div><div class="meta">${esc(meta || "")}</div><div class="acts2"><button type="button" data-act="copy">Copy</button><button type="button" data-act="card">Share</button><button type="button" data-act="up" aria-label="Good answer">\ud83d\udc4d</button><button type="button" data-act="down" aria-label="Bad answer">\ud83d\udc4e</button><button type="button" data-act="cont" class="off">Continue</button></div>`;
   } else if (cls === "note") {
     d.innerHTML = `<div class="mtxt">${esc(text)}</div>`;
   } else {
@@ -1290,6 +1455,101 @@ $("webbtn").onclick = () => {
   paintWeb(); toast(webOn ? "Web search on. Answers can use live results." : "Web search off.");
 };
 
+// Share an answer as a good-looking image (question, answer, AI Relay branding)
+function plainText(md) {
+  return String(md || "")
+    .replace(/```\w*\n?([\s\S]*?)```/g, (m, c) => c.trim())
+    .replace(/\n\n\[Attached (file|picture): [^\]]+\][\s\S]*$/, "")
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/(^|\s)\*([^*\n]+)\*/g, "$1$2").replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*]\s+/gm, "• ").replace(/\$\$?([^$]+)\$\$?/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+}
+function wrapLines(ctx, text, maxW, maxLines) {
+  const out = [];
+  for (const para of text.split("\n")) {
+    if (!para.trim()) { out.push(""); continue; }
+    let line = "";
+    for (const word of para.split(/\s+/)) {
+      const tryL = line ? line + " " + word : word;
+      if (ctx.measureText(tryL).width > maxW && line) { out.push(line); line = word; } else line = tryL;
+      while (ctx.measureText(line).width > maxW) { let k = line.length - 1; while (k > 1 && ctx.measureText(line.slice(0, k)).width > maxW) k--; out.push(line.slice(0, k)); line = line.slice(k); }
+    }
+    out.push(line);
+  }
+  while (out.length && !out[out.length - 1]) out.pop();
+  if (out.length > maxLines) { const cut = out.slice(0, maxLines); cut[maxLines - 1] = cut[maxLines - 1].replace(/\s*\S*$/, "") + " …"; return { lines: cut, more: true }; }
+  return { lines: out, more: false };
+}
+async function shareCard(i, btn) {
+  const m = history[i]; if (!m) return;
+  const qm = history[i - 1] && history[i - 1].role === "user" ? history[i - 1] : null;
+  const qText = qm ? plainText((splitFile(qm.content) || { text: qm.content }).text) : "";
+  const aText = plainText(m.content);
+  const W = 1080, P = 80, font = '-apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif';
+  const c = document.createElement("canvas"), x = c.getContext("2d");
+  x.font = `600 40px ${font}`; const qw = wrapLines(x, qText, W - P * 2 - 56, 3);
+  x.font = `400 38px ${font}`; const aw = wrapLines(x, aText, W - P * 2, 16);
+  const H = Math.max(1080, P + 90 + 50 + (qText ? qw.lines.length * 54 + 70 : 0) + aw.lines.length * 56 + 60 + 120 + P);
+  c.width = W; c.height = H;
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0f172a"); g.addColorStop(1, "#1a1530"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(W * 0.1, H * 0.05, 520, "rgba(96,165,250,.22)"); glow(W * 0.95, H * 0.95, 620, "rgba(167,139,250,.20)");
+  // logo tile + sparkle
+  x.save(); x.translate(P, P);
+  x.fillStyle = "#0b1224"; x.beginPath(); x.roundRect(0, 0, 76, 76, 20); x.fill();
+  x.strokeStyle = "rgba(255,255,255,.08)"; x.lineWidth = 2; x.stroke();
+  x.scale(76 / 120, 76 / 120);
+  const sg = x.createLinearGradient(22, 22, 98, 98); sg.addColorStop(0, "#60a5fa"); sg.addColorStop(1, "#c084fc"); x.fillStyle = sg;
+  x.fill(new Path2D("M60 22c3 22 16 35 38 38-22 3-35 16-38 38-3-22-16-35-38-38 22-3 35-16 38-38z"));
+  x.restore();
+  x.fillStyle = "#f2f2f2"; x.font = `700 42px ${font}`; x.textBaseline = "middle"; x.fillText("AI Relay", P + 100, P + 38);
+  x.textBaseline = "alphabetic";
+  let y = P + 76 + 70;
+  if (qText) {
+    const qh = qw.lines.length * 54 + 40;
+    x.fillStyle = "rgba(255,255,255,.07)"; x.beginPath(); x.roundRect(P, y - 4, W - P * 2, qh, 26); x.fill();
+    x.fillStyle = "#c7d2fe"; x.font = `600 40px ${font}`;
+    qw.lines.forEach((l, k) => x.fillText(l, P + 28, y + 46 + k * 54));
+    y += qh + 56;
+  }
+  x.fillStyle = "#eef0f6"; x.font = `400 38px ${font}`;
+  aw.lines.forEach((l, k) => x.fillText(l, P, y + k * 56));
+  y += aw.lines.length * 56;
+  if (aw.more) { x.fillStyle = "#9aa3b8"; x.font = `500 30px ${font}`; x.fillText("Read the full answer on AI Relay", P, y + 20); }
+  // footer
+  x.fillStyle = "rgba(255,255,255,.12)"; x.fillRect(P, H - P - 74, W - P * 2, 2);
+  x.fillStyle = "#cbd5e1"; x.font = `600 32px ${font}`; x.fillText("Free AI chat that never runs out", P, H - P - 14);
+  x.fillStyle = "#94a3b8"; x.font = `500 30px ${font}`; const host = location.host; x.fillText(host, W - P - x.measureText(host).width, H - P - 14);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  if (!blob) { toast("Could not make the image."); return; }
+  const file = new File([blob], "ai-relay-answer.png", { type: "image/png" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "AI Relay", text: "Answer from AI Relay " + location.origin }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "ai-relay-answer.png"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Image saved. Post it anywhere!");
+}
+
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+function maybeA2HS() {
+  const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  const phone = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  let until = 0; try { until = Number(localStorage.getItem("a2hs-hide") || 0); } catch {}
+  if (standalone || !phone || Date.now() < until || $("a2hs") || maybeA2HS.shown) return;
+  maybeA2HS.shown = true;
+  const d = document.createElement("div"); d.id = "a2hs"; d.setAttribute("role", "status");
+  d.innerHTML = '<span aria-hidden="true">📲</span><span class="t"><b>Add AI Relay to your Home Screen</b><br>Open it in one tap, full screen.</span><button type="button" class="btn small" id="a2hsGo">' + (installEvt ? "Install" : "How") + '</button><button type="button" class="x" id="a2hsX" aria-label="Not now">×</button>';
+  $("app").appendChild(d);
+  const hide = days => { try { localStorage.setItem("a2hs-hide", String(Date.now() + days * 864e5)); } catch {} d.remove(); };
+  $("a2hsX").onclick = () => hide(14);
+  $("a2hsGo").onclick = async () => {
+    if (installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch {} installEvt = null; hide(60); }
+    else { hide(14); openSheetEl("hsheet"); }
+  };
+}
+
 // Thumbs up / down (only counts are sent to the server, never the chat text)
 const voteKey = i => chatId + ":" + i;
 function getVotes() { try { return JSON.parse(localStorage.getItem("votes") || "{}"); } catch { return {}; } }
@@ -1346,7 +1606,32 @@ function cancelEdit(keepText) {
   if (!keepText) { q.value = ""; q.dispatchEvent(new Event("input")); pendingFile = null; pendingImage = null; showChip(); }
 }
 $("editcancel").onclick = () => cancelEdit(false);
-$("sugg").onclick = e => { const s = e.target.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
+const SUGGESTIONS = [
+  ["💡", "Explain how black holes work, simply"], ["✉️", "Help me write a polite email to say no"], ["🍝", "What can I cook with eggs, rice and spinach?"],
+  ["🧠", "Quiz me on world capitals"], ["🎮", "Give me 5 ideas for a simple, addictive game"], ["💼", "Make my CV sound more professional"],
+  ["📚", "Summarise the causes of World War 1 in 5 bullet points"], ["🏋️", "Make me a 20-minute workout with no equipment"], ["✈️", "Plan a cheap weekend in Paris"],
+  ["🧮", "Explain percentages with an easy example"], ["🎁", "Gift ideas for someone who loves football"], ["🗣️", "Teach me 10 useful Spanish phrases"],
+  ["📈", "How do I start a small online business?"], ["🎬", "Recommend a film like Interstellar"], ["🧹", "Make a weekly chore plan for a busy person"],
+  ["💻", "Explain what an API is like I'm 12"], ["😴", "Tips to fall asleep faster"], ["📝", "Help me revise for a biology test"],
+  ["🎤", "Write a funny short speech for a birthday"], ["🔍", "Is this website safe? (paste a link)"], ["🐍", "Write a simple Python game I can run"],
+  ["💰", "How can I save money as a teenager?"], ["🌍", "Tell me a surprising fact about space"], ["📱", "Write a catchy TikTok caption for my video"],
+];
+function shuffleSugg() {
+  const pool = SUGGESTIONS.slice();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  $("sugg").innerHTML = pool.slice(0, 4).map(([e, t]) => `<button type="button" data-s="${esc(t)}"><span class="se" aria-hidden="true">${e}</span>${esc(t)}</button>`).join("");
+}
+shuffleSugg();
+$("trychips").onclick = e => {
+  const b = e.target.closest("[data-try]"); if (!b || busy) return;
+  const k = b.dataset.try;
+  if (k === "pic") { $("imgIn").click(); return; }
+  q.value = k === "web" ? "Is this website safe? " : "Remember that I ";
+  q.dispatchEvent(new Event("input")); q.focus();
+  try { q.setSelectionRange(q.value.length, q.value.length); } catch {}
+  if (k === "web") toast("Paste the website link, then send.");
+};
+$("sugg").onclick = e => { const b = e.target.closest("[data-s]"); const s = b && b.dataset.s; if (s && !busy) { q.value = s; $("f").requestSubmit(); } };
 
 col.addEventListener("click", async e => {
   const nb = e.target.closest("[data-note]");
@@ -1368,6 +1653,7 @@ col.addEventListener("click", async e => {
   const i = Number(msg.dataset.i), m = history[i]; if (!m) return;
   const act = b.dataset.act;
   if (act === "up" || act === "down") { voteOn(msg, i, act); return; }
+  if (act === "card") { shareCard(i, b); return; }
   if (act === "copy") {
     const q0 = history[i - 1] && history[i - 1].role === "user" ? String(history[i - 1].content) : "";
     const text = q0 ? "You: " + q0 + "\n\nAI Relay: " + String(m.content) : String(m.content);
@@ -1490,7 +1776,7 @@ $("f").addEventListener("submit", async e => {
   setBusy(true);
   refreshActs();
   abortCtl = new AbortController();
-  let full = "", shown = "", meta = "", errorInfo = null, sources = [];
+  let full = "", raw = "", shown = "", meta = "", errorInfo = null, sources = [];
   const body = () => bubble.querySelector(".body");
   const showMeta = () => { bubble.querySelector(".meta").textContent = meta; };
 
@@ -1528,12 +1814,28 @@ $("f").addEventListener("submit", async e => {
         stageT = setTimeout(() => { stage = "writing"; setStatus("Writing…"); }, wait);
         stage = "connected";
       }
-      full += ev.text;
+      raw += ev.text; full = memClean(raw, true);
     }
-    else if (ev.type === "done") { if (ev.fellBack) meta += " · your pinned choice was unavailable"; showMeta(); }
+    else if (ev.type === "done") {
+      if (ev.fellBack) meta += " · your pinned choice was unavailable";
+      showMeta();
+      const tried = Array.isArray(ev.tried) ? ev.tried : [];
+      const prev = tried.length ? String(tried[tried.length - 1]).split(":")[0].trim() : "";
+      if (prev && prev !== ev.provider) {
+        const why = /limit|429|quota|rate|resting|used up|exhaust|too many/i.test(tried[tried.length - 1]) ? "hit its limit" : "didn't answer";
+        setTimeout(() => toast(`Switched to ${ev.provider} because ${prev} ${why}.`), 400);
+        const pill = $("pill"); pill.classList.remove("bump"); void pill.offsetWidth; pill.classList.add("bump");
+        try { navigator.vibrate && navigator.vibrate(12); } catch {}
+      }
+    }
     else if (ev.type === "error") { errorInfo = ev; }
     else if (ev.type === "status") { if (stage === "thinking" && ev.text) setStatus(ev.text); }
     else if (ev.type === "web") { sources = Array.isArray(ev.sources) ? ev.sources : []; }
+    else if (ev.type === "memory" && Array.isArray(ev.added) && ev.added.length) {
+      const fact = ev.added[0];
+      memory.items = memory.items.concat(ev.added);
+      setTimeout(() => toast("Remembered: " + fact, "Undo", () => forgetMemory(fact), 7000), 900);
+    }
   };
 
   try {
@@ -1562,6 +1864,8 @@ $("f").addEventListener("submit", async e => {
     if (!(abortCtl && abortCtl.signal.aborted)) errorInfo = errorInfo || { error: err.message };
   }
 
+  full = memClean(raw || full, false);
+  if (full && !errorInfo) setTimeout(maybeA2HS, 2500);
   if (full && sources.length) {
     full += "\n\nSources:\n" + sources.map((s, n) => "- [" + n + "] [" + String(s.title).replace(/[\[\]]/g, "").slice(0, 80) + "](" + s.url + ")").join("\n").replace(/\[(\d)\] \[/g, (m, d) => "[" + (Number(d) + 1) + "] [");
   }
@@ -1679,7 +1983,9 @@ async function autoKey() {
     $("lerr").textContent = e instanceof TypeError ? serverMsg : e.message;
   }
 }
-if (getKey()) { show(true); refresh(); loadChats(); if (linkedIn) setTimeout(() => toast("Signed in on this device."), 600); } else autoKey();
+let wakeT = setTimeout(() => toast("Waking up the server… the first load can take up to 30 seconds.", null, null, 40000), 3000);
+const woke = () => { if (wakeT) { clearTimeout(wakeT); wakeT = 0; const t = $("undoToast"); if (t && /Waking up/.test(t.textContent)) toast("Ready!"); } };
+if (getKey()) { show(true); Promise.resolve(refresh()).finally(woke); loadChats(); if (linkedIn) setTimeout(() => toast("Signed in on this device."), 600); } else autoKey().finally(woke);
 setInterval(() => { if (!busy && (!document.activeElement || document.activeElement.tagName !== "INPUT")) refresh(); }, 5000);
 
 // Jump to latest
