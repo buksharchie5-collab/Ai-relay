@@ -452,6 +452,15 @@
     background:color-mix(in srgb, var(--panel) 88%, var(--tint2)); border:1px solid color-mix(in srgb, var(--line) 60%, var(--tint2)); box-shadow:0 10px 30px rgba(0,0,0,.3); animation:fadeIn .35s var(--ease) both; font-size:14px; }
   #a2hs .t { flex:1; min-width:0; line-height:1.35; }
   #a2hs .x { width:30px; height:30px; border-radius:50%; color:var(--mute); font-size:18px; flex:none; }
+
+  /* ---- Floating, slightly see-through text box: chats scroll underneath it (no solid strip) ---- */
+  #app > #f.composer { position:absolute; left:0; right:0; bottom:0; z-index:5; padding-top:10px;
+    background:linear-gradient(to top, var(--bg) 0, var(--bg) calc(env(safe-area-inset-bottom,0px) + 8px), transparent 55%); pointer-events:none; }
+  #app > #f.composer > * { pointer-events:auto; }
+  #app > #f.composer .box { background:#2c2c2c; }
+  @media (min-width:900px) { #app > #f.composer .box { background:#3c3c3c; } }
+  html[data-theme="light"] #app > #f.composer .box { background:#f4f4f6; }
+  #log { padding-bottom:calc(var(--ch, 130px) + 14px) !important; }
 </style>
 </head>
 <body>
@@ -2041,6 +2050,14 @@ document.addEventListener("touchmove", e => {
   }
   e.preventDefault();
 }, { passive: false });
+
+// Keep room at the bottom of the chat for the floating text box (it grows as you type).
+(function () {
+  const f = document.getElementById("f"), app = document.getElementById("app");
+  const set = () => app.style.setProperty("--ch", f.offsetHeight + "px");
+  set();
+  if (window.ResizeObserver) new ResizeObserver(set).observe(f); else window.addEventListener("resize", set);
+})();
 </script>
 </body>
 </html>
