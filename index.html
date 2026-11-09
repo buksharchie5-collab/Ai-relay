@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="AI Relay is a free AI chat that switches to the next AI when one runs out, so you can keep chatting.">
-<meta name="theme-color" content="#212121">
-<script>try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}</script>
+<meta name="theme-color" id="themeColor" content="#212121">
+<script>try{if(localStorage.getItem("theme")==="light"){document.documentElement.setAttribute("data-theme","light");document.getElementById("themeColor").setAttribute("content","#ffffff");}}catch(e){}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AI Relay">
@@ -465,6 +465,18 @@
   /* ---- Home Screen app: put the text box right at the bottom of the screen ---- */
   /* When the page already stops above the home bar, the extra bottom padding for the home bar isn't needed. */
   #app.short-screen > #f.composer { padding-bottom:6px; }
+
+  /* ---- Compact side menu on phones (like ChatGPT); computers keep the roomier size ---- */
+  @media (max-width:899px) {
+    .nav { gap:10px; padding:7px 8px; border-radius:10px; font-size:15px; }
+    .nav .icon { width:24px; height:24px; }
+    .nav .icon svg { width:18px; height:18px; }
+    .citem { border-radius:9px; }
+    .citem .t { padding:8px 8px; font-size:14.5px; }
+    .citem .ib { padding:5px 6px; font-size:12px; }
+    .citem .x { width:30px; height:30px; font-size:19px; border-radius:8px; }
+    .citem { max-height:46px; }
+  }
 </style>
 </head>
 <body>
@@ -2033,6 +2045,8 @@ else {
 // Light / dark
 function applyTheme(t) {
   if (t === "light") document.documentElement.setAttribute("data-theme", "light"); else document.documentElement.removeAttribute("data-theme");
+  // The strip at the very top (Safari's bar / phone status area) follows the theme too.
+  const tc = document.getElementById("themeColor"); if (tc) tc.setAttribute("content", t === "light" ? "#ffffff" : "#212121");
   $("themeLbl").textContent = t === "light" ? "Dark mode" : "Light mode";
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === "light" ? "#ffffff" : "#212121";
 }
