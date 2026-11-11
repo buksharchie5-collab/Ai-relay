@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="AI Relay">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,800&display=swap">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <title>AI Relay: free AI chat that never runs out</title>
@@ -485,58 +487,115 @@
   #drawer { right:8px; transform:translateX(calc(100% + 16px)); padding:14px 14px 14px; }
   #drawer #cards { padding-bottom:6px; }
   html[data-theme="light"] #side, html[data-theme="light"] #drawer { box-shadow:0 18px 50px rgba(0,0,0,.16); }
+
+  /* ---- Motion layer (GSAP): turn off the old CSS animations it replaces ---- */
+  html.gsap-on .msg.pop, html.gsap-on #greet.fade-in { animation:none; }
+  .spark { position:fixed; width:2px; height:9px; margin:-4.5px 0 0 -1px; border-radius:2px; pointer-events:none; z-index:200; transform-origin:50% 50%; }
+
+  /* ---- Sign-in page: "the handover" ---- */
+  #login { display:block; justify-content:initial; align-items:initial; gap:0; padding:0; }
+  #login.off { display:none; }
+  .gate { min-height:100%; max-width:460px; margin:0 auto; display:flex; flex-direction:column; padding:calc(16px + env(safe-area-inset-top,0px)) 22px calc(28px + env(safe-area-inset-bottom,0px)); }
+  .gate-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .gate-brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
+  .gate-brand .logo { width:28px; height:28px; border-radius:8px; }
+  .gate-home { display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:99px; font-size:13px; font-weight:600; color:var(--mute); border:1px solid var(--line); }
+  .gate-home:hover { color:var(--ink); }
+  .gate-home svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .gate-title { font-family:"Archivo", system-ui, sans-serif; font-weight:800; font-stretch:75%; font-variation-settings:"wdth" 75; font-size:clamp(46px, 13vw, 64px); line-height:.94; letter-spacing:-.01em; margin:auto 0 0; padding-top:12vh; max-width:9ch; text-wrap:balance; }
+  /* the relay lane: one dot hands the baton to the next */
+  .lane { margin:28px 0 36px; }
+  .lane-track { position:relative; height:2px; margin:0 8px; background:var(--line); border-radius:2px; }
+  .lane-track::before { content:""; position:absolute; left:0; top:0; height:100%; width:33.3%; background:linear-gradient(90deg, #60a5fa, #a78bfa); border-radius:2px; }
+  .lane-baton { position:absolute; top:50%; left:33.3%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:linear-gradient(135deg, #8fb4ff, #b69cff); box-shadow:0 0 0 5px color-mix(in srgb, #a78bfa 22%, transparent); animation:handover 1.6s cubic-bezier(.65,0,.35,1) .35s both; }
+  @keyframes handover { from { left:0; } to { left:33.3%; } }
+  .lane-track::before { animation:handTrail 1.6s cubic-bezier(.65,0,.35,1) .35s both; }
+  @keyframes handTrail { from { width:0; } to { width:33.3%; } }
+  .lane-track i { position:absolute; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:var(--line); }
+  .lane-names { position:relative; height:18px; list-style:none; margin:12px 8px 0; padding:0; font-size:13px; font-weight:600; }
+  .lane-names li { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; color:var(--mute); }
+  .lane-names li:nth-child(1) { left:0; transform:none; margin-left:-8px; } .lane-names li:nth-child(2) { left:33.3%; } .lane-names li:nth-child(3) { left:66.6%; } .lane-names li:nth-child(4) { left:auto; right:-8px; transform:none; }
+  .lane-names li.out { text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--mute) 60%, transparent); opacity:.7; }
+  .lane-names li.now { color:var(--ink); }
+  .lane-note { margin:14px 0 0; color:var(--mute); font-size:14px; }
+  .gate-label { display:block; font-size:14px; font-weight:600; margin:0 0 8px; }
+  .gate-field { position:relative; }
+  .gate-field input { width:100%; height:56px; padding:0 84px 0 16px; font-size:17px; border-radius:16px; background:var(--field); border:1px solid var(--line); color:var(--ink); }
+  .gate-field input:focus { outline:none; border-color:color-mix(in srgb, var(--line) 30%, #a78bfa); box-shadow:0 0 0 4px color-mix(in srgb, #a78bfa 18%, transparent); }
+  .gate-paste { position:absolute; right:8px; top:8px; height:40px; padding:0 14px; border-radius:11px; font-size:14px; font-weight:600; color:var(--ink); background:var(--raised); }
+  .gate-go { width:100%; height:54px; margin-top:12px; border-radius:16px; background:var(--ink); color:var(--bg); font-size:16px; font-weight:700; transition:transform .15s ease, opacity .2s ease; }
+  .gate-go:active { transform:scale(.985); }
+  .gate-hint { margin:12px 0 0; color:var(--mute); font-size:13.5px; line-height:1.45; }
+  .gate-rule { height:1px; background:var(--line); margin:28px 0 22px; }
+  .gate-new { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .gate-new h2, .gate-made h2 { font-size:16px; margin:0 0 2px; }
+  .gate-new p { margin:0; color:var(--mute); font-size:14px; }
+  .gate-new #ts:empty { display:none; }
+  .gate-alt { height:44px; padding:0 18px; border-radius:14px; border:1px solid var(--line); font-size:15px; font-weight:600; color:var(--ink); }
+  .gate-alt:hover { background:var(--raised); }
+  .gate-made { margin-top:auto; }
+  .gate-made p { color:var(--mute); font-size:14px; margin:0 0 14px; }
+  .gate-made-row { display:flex; gap:10px; align-items:center; }
+  .gate-made-row .gate-go { margin-top:0; flex:1; }
+  #login .err { max-width:none; text-align:left; margin-top:16px; }
+  @media (min-width:900px) {
+    .gate { padding-top:28px; }
+    .gate-title { padding-top:6vh; font-size:64px; }
+    .gate-home { display:none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .lane-baton, .lane-track::before { animation:none; } }
 </style>
 </head>
 <body>
 
 <div id="login" class="off">
-  <button id="homeBtn" class="corner-btn" type="button" aria-label="Add AI Relay to your Home Screen">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen
-  </button>
-
-  <header class="hero">
-    <div class="logo-tile" aria-hidden="true"><svg viewBox="0 0 120 120" width="100%" height="100%" aria-hidden="true"><defs><linearGradient id="spk1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><path d="M60 22c3 22 16 35 38 38-22 3-35 16-38 38-3-22-16-35-38-38 22-3 35-16 38-38z" fill="url(#spk1)"/></svg></div>
-    <h1>AI Relay</h1>
-    <p>When one free AI runs out, the next picks up.</p>
-  </header>
-
-  <section class="panel" id="choose">
-    <h2>New here?</h2>
-    <p class="sub">Create a personal key. It saves your setup and works on any device.</p>
-    <p class="sub" style="margin-top:-4px"><b>Your key is your password.</b> There is no email or reset, so you must save it. If you lose it, your chats are gone for good.</p>
-    <div id="ts" style="margin:0 0 12px"></div>
-    <button id="create" type="button" class="btn block">Create my key</button>
-  </section>
-
-  <div class="or" id="orDivider">or</div>
-
-  <section class="panel" id="returning">
-    <h2>Already have a key?</h2>
-    <p class="sub">Paste the personal key you saved.</p>
-    <div class="keyrow">
-      <input id="have" type="password" placeholder="fa-…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Personal key">
-      <button id="enter" type="button" class="btn">Sign in</button>
+  <div class="gate">
+    <div class="gate-top">
+      <span class="gate-brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 120 120" width="100%" height="100%"><defs><linearGradient id="spkL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs><path d="M60 22c3 22 16 35 38 38-22 3-35 16-38 38-3-22-16-35-38-38 22-3 35-16 38-38z" fill="url(#spkL)"/></svg></span>AI Relay</span>
+      <button id="homeBtn" class="gate-home" type="button" aria-label="Add AI Relay to your Home Screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Home Screen</button>
     </div>
-  </section>
 
+    <h1 class="gate-title">Pick up where you left off.</h1>
 
-  <section class="panel off" id="made">
-    <h2>Save your key</h2>
-    <p class="sub"><b>This key is your password.</b> Copy it and save it now, in your notes or a password manager. If you lose it, nobody can get it back and you lose your chats.</p>
-    <code class="key" id="newkey"></code>
-    <div class="keyrow">
-      <button id="copy2" class="btn ghost" type="button">Copy</button>
-      <button id="go" class="btn" type="button">I saved it</button>
+    <div class="lane" aria-label="When one free AI runs out, the next one answers.">
+      <div class="lane-track" aria-hidden="true"><i style="left:0"></i><i style="left:66.6%"></i><i style="left:100%"></i><span class="lane-baton"></span></div>
+      <ol class="lane-names" aria-hidden="true"><li class="out">Groq</li><li class="now">Cerebras</li><li>Mistral</li><li>Cloudflare</li></ol>
+      <p class="lane-note">When one free AI runs out, the next one answers.</p>
     </div>
-  </section>
 
-  <section class="steps">
-    <div class="step"><span class="num">1</span><span><b>Create your key</b> and save it.</span></div>
-    <div class="step"><span class="num">2</span><span><b>Add a free AI key</b> from the AI providers panel.</span></div>
-    <div class="step"><span class="num">3</span><span><b>Start chatting.</b> If one AI runs out, the next one answers.</span></div>
-  </section>
+    <section id="returning" class="gate-in">
+      <label for="have" class="gate-label">Your key</label>
+      <div class="gate-field">
+        <input id="have" type="password" placeholder="fa-…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+        <button id="pasteKey" class="gate-paste" type="button">Paste</button>
+      </div>
+      <button id="enter" type="button" class="gate-go">Sign in</button>
+      <p class="gate-hint">Your key is your password. There's no email or reset, so keep it somewhere safe.</p>
+    </section>
 
-  <p id="lerr" class="err" role="alert"></p>
+    <div class="gate-rule" id="orDivider"></div>
+
+    <section id="choose" class="gate-new">
+      <div>
+        <h2>New here?</h2>
+        <p>Start with a fresh key on this device.</p>
+      </div>
+      <div id="ts"></div>
+      <button id="create" type="button" class="gate-alt">Start fresh</button>
+    </section>
+
+    <section class="off gate-made" id="made">
+      <h2>Here's your key</h2>
+      <p>It's your password. Copy it into your notes or a password manager now. Nobody can get it back if it's lost.</p>
+      <code class="key" id="newkey"></code>
+      <div class="gate-made-row">
+        <button id="copy2" class="gate-alt" type="button">Copy</button>
+        <button id="go" class="gate-go" type="button">I've saved it</button>
+      </div>
+    </section>
+
+    <p id="lerr" class="err" role="alert"></p>
+  </div>
 </div>
 
 <div id="app" class="off">
@@ -1968,6 +2027,7 @@ $("create").onclick = async () => {
     localStorage.setItem("freeai-key", r.token); keyCookie(r.token);
     try { localStorage.removeItem("signed-out"); } catch {}
     $("newkey").textContent = r.token;
+    const gt = document.querySelector(".gate-title"); if (gt) gt.textContent = "You're in. Save your key.";
     $("choose").classList.add("off"); $("returning").classList.add("off"); $("orDivider").classList.add("off");
     play($("made"), "appear");
     $("made").classList.remove("off");
@@ -1975,10 +2035,15 @@ $("create").onclick = async () => {
 };
 $("copy2").onclick = e => { navigator.clipboard.writeText(getKey()); e.target.textContent = "Copied"; };
 $("go").onclick = async () => { show(true); await refresh(); loadChats(); };
+$("pasteKey").onclick = async () => {
+  try { const t = (await navigator.clipboard.readText()).trim(); if (t) { $("have").value = t; $("have").type = "password"; $("lerr").textContent = ""; } }
+  catch { $("have").focus(); $("lerr").textContent = "Tap the box and paste your key."; }
+};
+$("have").addEventListener("keydown", e => { if (e.key === "Enter") $("enter").click(); });
 $("enter").onclick = async () => {
   const k = $("have").value.trim();
   $("lerr").textContent = "";
-  if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Create my key to make one."; return; }
+  if (!k) { $("lerr").textContent = "Paste your key first, or tap Start fresh to make a new one."; return; }
   if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
   if (notServed()) { $("lerr").textContent = serverMsg; return; }
   localStorage.setItem("freeai-key", k); keyCookie(k);
@@ -2009,7 +2074,7 @@ async function autoKey() {
   const bot = navigator.webdriver || /bot|crawl|spider|slurp|preview|lighthouse/i.test(navigator.userAgent);
   let signedOut = false; try { signedOut = localStorage.getItem("signed-out") === "1"; } catch {}
   if (bot || signedOut || notServed()) { show(false); return; }
-  if (isStandalone) { show(false); $("lerr").textContent = "Already use AI Relay in Safari? Copy your key there (menu, next to Sign out) and paste it below. New here? Tap Create my key."; return; }
+  if (isStandalone) { show(false); $("lerr").textContent = "Already use AI Relay in Safari? Copy your key there (menu, next to Sign out) and paste it above. New here? Tap Start fresh."; return; }
   try {
     const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId(), turnstile: tsToken }) })).json();
     if (!r.token) throw new Error(r.error || "Could not create a key");
@@ -2119,6 +2184,113 @@ document.addEventListener("touchmove", e => {
   if (window.ResizeObserver) new ResizeObserver(set).observe(f); else window.addEventListener("resize", set);
   window.addEventListener("orientationchange", () => setTimeout(() => { measure(); set(); }, 350));
 })();
+
+// ------------------------------------------------------------------
+// Motion: GSAP animations + Lenis smooth scrolling (ideas from React Bits).
+// Both libraries are optional: if they fail to load, the app works exactly the same.
+// ------------------------------------------------------------------
+function initMotion() {
+  const g = window.gsap;
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!g || reduce || initMotion.done) return;
+  initMotion.done = true;
+  document.documentElement.classList.add("gsap-on");
+  const fine = window.matchMedia && matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const soft = "power3.out", springy = "back.out(1.7)";
+  const clear = "transform,opacity,filter";
+
+  // 1) Greeting: soft blur-in (React Bits "BlurText" feel), then the suggestions slide in one by one.
+  function introEmpty() {
+    const empty = $("empty");
+    if (!empty || empty.classList.contains("off")) return;
+    g.killTweensOf(["#greet", "#sugg > button"]);
+    g.timeline()
+      .fromTo("#greet", { opacity: 0, y: 14, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: .7, ease: soft, clearProps: clear })
+      .fromTo("#sugg > button", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .45, ease: soft, stagger: .06, clearProps: clear }, "-=.38");
+  }
+  new MutationObserver(() => { if (!$("empty").classList.contains("off")) introEmpty(); }).observe($("empty"), { attributes: true, attributeFilter: ["class"] });
+  new MutationObserver(() => introEmpty()).observe($("sugg"), { childList: true });
+  introEmpty();
+
+  // 2) New messages: your message springs up from the corner, answers fade up smoothly.
+  new MutationObserver(list => {
+    const added = [];
+    list.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.classList.contains("msg")) added.push(n); }));
+    if (!added.length || added.length > 2) return; // opening an old chat: no animation
+    added.forEach(el => {
+      el.classList.remove("pop");
+      if (el.classList.contains("me")) g.fromTo(el, { opacity: 0, y: 16, scale: .96, transformOrigin: "100% 100%" }, { opacity: 1, y: 0, scale: 1, duration: .5, ease: springy, clearProps: clear });
+      else g.fromTo(el, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .5, ease: soft, clearProps: clear });
+    });
+  }).observe($("col"), { childList: true });
+
+  // 3) Menus and panels: items glide in one after another when they open.
+  new MutationObserver(() => {
+    const app = $("app");
+    if (app.classList.contains("side-open") && !initMotion.sideWas) g.fromTo("#side .nav, #side .citem", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: .4, ease: soft, stagger: .025, delay: .06, clearProps: clear });
+    if (app.classList.contains("drawer-open") && !initMotion.drawerWas) g.fromTo("#drawer .dtools > *, #drawer .pc", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .4, ease: soft, stagger: .035, delay: .08, clearProps: clear });
+    initMotion.sideWas = app.classList.contains("side-open");
+    initMotion.drawerWas = app.classList.contains("drawer-open");
+  }).observe($("app"), { attributes: true, attributeFilter: ["class"] });
+  document.querySelectorAll(".sheet").forEach(sh => {
+    let was = false;
+    new MutationObserver(() => {
+      const on = sh.classList.contains("show");
+      if (on && !was) {
+        const items = sh.querySelectorAll(".sheettitle, .opt, .pform > *, .sheetbody > .btn, .linkbox, .guide");
+        if (items.length) g.fromTo(items, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: .38, ease: soft, stagger: .03, delay: .1, clearProps: clear });
+      }
+      was = on;
+    }).observe(sh, { attributes: true, attributeFilter: ["class"] });
+  });
+
+  // 4) Click spark on send (React Bits "ClickSpark"): a tiny burst of light from the send button.
+  const sparkColors = ["#60a5fa", "#a78bfa", "#c4b5fd", "#93c5fd"];
+  function spark(el) {
+    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement("i");
+      s.className = "spark";
+      s.style.cssText = `left:${cx}px;top:${cy}px;background:${sparkColors[i % sparkColors.length]};transform:rotate(${i * 45}deg) translateY(0)`;
+      document.body.appendChild(s);
+      const st8 = { p: 0 };
+      g.to(st8, { p: 1, duration: .5, ease: "power2.out", onComplete: () => s.remove(),
+        onUpdate: () => { const p = st8.p; s.style.opacity = String(1 - p); s.style.transform = `rotate(${i * 45}deg) translateY(${-(r.width / 2 + 4 + p * 16)}px) scaleY(${1 - p * .7})`; } });
+    }
+  }
+  $("f").addEventListener("submit", () => { const b = $("send"); if (b && b.offsetParent) spark(b); }, true);
+
+  // 5) Little pops when you tap thumbs, copy or share on an answer.
+  $("col").addEventListener("click", e => {
+    const b = e.target.closest(".acts2 button"); if (!b) return;
+    g.fromTo(b, { scale: .82 }, { scale: 1, duration: .45, ease: "back.out(3)", clearProps: "transform" });
+  });
+
+  // 6) Magnetic buttons on computers (React Bits "Magnet"): the send button and top pill lean toward the mouse.
+  if (fine) ["send", "pill", "newchat", "menu"].forEach(id => {
+    const el = $(id); if (!el) return;
+    const xTo = g.quickTo(el, "x", { duration: .4, ease: soft }), yTo = g.quickTo(el, "y", { duration: .4, ease: soft });
+    el.addEventListener("mousemove", e => {
+      const r = el.getBoundingClientRect();
+      xTo((e.clientX - (r.left + r.width / 2)) * .18); yTo((e.clientY - (r.top + r.height / 2)) * .18);
+    });
+    el.addEventListener("mouseleave", () => { g.to(el, { x: 0, y: 0, duration: .6, ease: "elastic.out(1, .5)" }); });
+  });
+
+  // 7) Lenis: buttery smooth mouse-wheel scrolling of the chat on computers (phones keep their own natural scrolling).
+  if (fine && window.Lenis) {
+    try {
+      const lenis = new window.Lenis({
+        wrapper: $("log"), content: $("col"), smoothWheel: true, lerp: .12, wheelMultiplier: 1, autoRaf: true,
+        prevent: node => !!(node.closest && node.closest("pre, table, .codeblk, .tbl, textarea")),
+      });
+      window.__lenis = lenis;
+    } catch (e) { console.warn("Lenis off:", e.message); }
+  }
+}
+window.addEventListener("load", initMotion);
 </script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+<script src="https://unpkg.com/lenis@1.3.4/dist/lenis.min.js" defer></script>
 </body>
 </html>
