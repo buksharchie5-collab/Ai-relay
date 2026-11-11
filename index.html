@@ -741,6 +741,11 @@
 
 <script>
 window.addEventListener("error", e => {
+  // "Script error." comes from scripts on other sites (or the iPhone share sheet) and carries no detail: ignore it.
+  if (!e.message || /^Script error\.?$/i.test(e.message)) return;
+  // Once the chat is open, never throw people out to the sign-in page because of a small glitch.
+  const appEl = document.getElementById("app");
+  if (appEl && !appEl.classList.contains("off")) { console.warn("AI Relay:", e.message); return; }
   const el = document.getElementById("lerr");
   const login = document.getElementById("login");
   const app = document.getElementById("app");
@@ -752,7 +757,14 @@ window.addEventListener("error", e => {
 const $ = id => document.getElementById(id);
 const log = $("log"), col = $("col"), q = $("q"), send = $("send"), app = $("app");
 const nf = n => n.toLocaleString();
-const getKey = () => localStorage.getItem("freeai-key");
+const getKey = () => { try { return localStorage.getItem("freeai-key"); } catch { return null; } };
+// The key is also kept in a cookie, because iPhones copy cookies (but not saved storage) into a Home Screen app when it's added.
+function keyCookie(k) {
+  try { document.cookie = k ? "fa_k=" + encodeURIComponent(k) + "; Max-Age=31536000; Path=/; Secure; SameSite=Lax" : "fa_k=; Max-Age=0; Path=/; Secure; SameSite=Lax"; } catch {}
+}
+function cookieKey() {
+  try { const m = /(?:^|;\s*)fa_k=([^;]+)/.exec(document.cookie); const v = m ? decodeURIComponent(m[1]) : ""; return /^fa-[\w.=\-]+$/.test(v) ? v : ""; } catch { return ""; }
+}
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const SEND_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
@@ -819,10 +831,10 @@ document.addEventListener("click", e => { if (e.target.dataset && e.target.datas
 
 function signOut() {
   const was = getKey();
-  localStorage.removeItem("freeai-key");
+  localStorage.removeItem("freeai-key"); keyCookie("");
   try { localStorage.setItem("signed-out", "1"); } catch {}
   if (was) setTimeout(() => toast("Signed out. Save your key first if you want to come back.", "Undo", () => {
-    localStorage.setItem("freeai-key", was); try { localStorage.removeItem("signed-out"); } catch {}
+    localStorage.setItem("freeai-key", was); keyCookie(was); try { localStorage.removeItem("signed-out"); } catch {}
     show(true); refresh(); loadChats();
   }, 7000), 50);
   st = null; history = []; chatId = newId(); profile = { name: "", style: "" };
@@ -1953,7 +1965,7 @@ $("create").onclick = async () => {
   try {
     const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId(), turnstile: tsToken }) })).json();
     if (!r.token) throw new Error(r.error || "Could not create a key");
-    localStorage.setItem("freeai-key", r.token);
+    localStorage.setItem("freeai-key", r.token); keyCookie(r.token);
     try { localStorage.removeItem("signed-out"); } catch {}
     $("newkey").textContent = r.token;
     $("choose").classList.add("off"); $("returning").classList.add("off"); $("orDivider").classList.add("off");
@@ -1969,7 +1981,7 @@ $("enter").onclick = async () => {
   if (!k) { $("lerr").textContent = "Paste your personal key first, or tap Create my key to make one."; return; }
   if (!k.startsWith("fa-")) { $("lerr").textContent = "Keys start with \"fa-\". Check you copied the whole key."; return; }
   if (notServed()) { $("lerr").textContent = serverMsg; return; }
-  localStorage.setItem("freeai-key", k);
+  localStorage.setItem("freeai-key", k); keyCookie(k);
   try { localStorage.removeItem("signed-out"); } catch {}
   try { st = await api("/api/status"); show(true); await refresh(); render(); loadChats(); }
   catch (e) { localStorage.removeItem("freeai-key"); $("lerr").textContent = e instanceof TypeError ? serverMsg : "That key was not recognized. Check it and try again."; }
@@ -1983,16 +1995,25 @@ let linkedIn = false;
     window.history.replaceState(null, "", location.pathname + location.search);
   }
 }
+// Home Screen app opened for the first time: pick up the key copied over from Safari.
+const isStandalone = window.navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+{
+  let out = false; try { out = localStorage.getItem("signed-out") === "1"; } catch {}
+  const ck = cookieKey();
+  if (!getKey() && ck && !out) { try { localStorage.setItem("freeai-key", ck); } catch {} }
+  if (getKey()) keyCookie(getKey());
+}
 // New visitors get a key made for them automatically, so they can start chatting straight away.
 // The sign-in page only appears after signing out, or if the automatic key could not be made.
 async function autoKey() {
   const bot = navigator.webdriver || /bot|crawl|spider|slurp|preview|lighthouse/i.test(navigator.userAgent);
   let signedOut = false; try { signedOut = localStorage.getItem("signed-out") === "1"; } catch {}
   if (bot || signedOut || notServed()) { show(false); return; }
+  if (isStandalone) { show(false); $("lerr").textContent = "Already use AI Relay in Safari? Copy your key there (menu, next to Sign out) and paste it below. New here? Tap Create my key."; return; }
   try {
     const r = await (await fetch("/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device: deviceId(), turnstile: tsToken }) })).json();
     if (!r.token) throw new Error(r.error || "Could not create a key");
-    localStorage.setItem("freeai-key", r.token);
+    localStorage.setItem("freeai-key", r.token); keyCookie(r.token);
     show(true); await refresh(); loadChats();
     setTimeout(() => toast("Welcome! We made you a key. It's your password, so copy it and keep it safe.", "Copy key", async () => {
       try { await navigator.clipboard.writeText(getKey()); toast("Key copied. Keep it private."); } catch { toast("Copy it from the menu, next to Sign out."); }
