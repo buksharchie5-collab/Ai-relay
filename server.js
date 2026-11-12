@@ -1229,7 +1229,44 @@ async function publicRoute(req, res) {
 
 const send = (res, code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
 
+// --- Security basics on every response ---
+function securityHeaders(req, res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)");
+  if (String(req.headers["x-forwarded-proto"] || "") === "https") res.setHeader("Strict-Transport-Security", "max-age=31536000");
+}
+// Too many wrong keys (or wrong admin keys) from one connection: slow them right down.
+const badTries = new Map();
+const BAD_LIMIT = 30, BAD_WINDOW = 15 * 60 * 1000;
+function tooManyBad(req) {
+  const k = anon("ip", clientIp(req)), e = badTries.get(k);
+  return !!(e && e.n >= BAD_LIMIT && Date.now() - e.t < BAD_WINDOW);
+}
+function noteBad(req) {
+  const k = anon("ip", clientIp(req)), e = badTries.get(k);
+  if (!e || Date.now() - e.t > BAD_WINDOW) badTries.set(k, { n: 1, t: Date.now() }); else e.n++;
+  if (badTries.size > 5000) for (const [key, v] of badTries) if (Date.now() - v.t > BAD_WINDOW) badTries.delete(key);
+}
+// New keys per connection per day (on top of the per-device limit), so one person can't make thousands.
+const signupsByIp = new Map();
+const MAX_SIGNUPS_PER_IP_DAY = 40;
+function signupIpCount(req) {
+  const k = anon("ip", clientIp(req)) + ":" + today();
+  const n = (signupsByIp.get(k) || 0) + 1; signupsByIp.set(k, n);
+  if (signupsByIp.size > 20000) signupsByIp.clear();
+  return n;
+}
+
 async function route(req, res) {
+  securityHeaders(req, res);
+  // Always use the secure (https) address.
+  const host = String(req.headers.host || "");
+  if (String(req.headers["x-forwarded-proto"] || "") === "http" && host && !/^(localhost|127\.0\.0\.1)(:|$)/.test(host)) {
+    res.writeHead(301, { Location: "https://" + host + req.url });
+    return res.end();
+  }
   if (req.method === "GET" && req.url === "/manifest.json") {
     res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" });
     return res.end(JSON.stringify(manifest));
@@ -1259,14 +1296,16 @@ async function route(req, res) {
 
   // Admin stats: returns nothing useful unless the ADMIN_KEY header matches.
   if (req.url === "/api/admin/notes/delete" && req.method === "POST") {
-    if (!adminOk(req)) return send(res, 401, { error: "Not allowed" });
+    if (tooManyBad(req)) return send(res, 429, { error: "Too many wrong keys. Wait 15 minutes." });
+    if (!adminOk(req)) { noteBad(req); return send(res, 401, { error: "Not allowed" }); }
     let raw = ""; for await (const c of req) { raw += c; if (raw.length > 2000) break; }
     let b = {}; try { b = JSON.parse(raw || "{}"); } catch {}
     await deleteNotes(b.all === true ? "" : String(b.id || "").replace(/[^a-f0-9]/g, "").slice(0, 20) || "__none__");
     return send(res, 200, { ok: true, total: await noteCount().catch(() => 0) });
   }
   if (req.url === "/api/admin/stats" && req.method === "GET") {
-    if (!adminOk(req)) return send(res, 401, { error: "Not allowed" });
+    if (tooManyBad(req)) return send(res, 429, { error: "Too many wrong keys. Wait 15 minutes." });
+    if (!adminOk(req)) { noteBad(req); return send(res, 401, { error: "Not allowed" }); }
     resetIfNewDay();
     const signups = await signupStats();
     const sharedToday = {};
@@ -1297,6 +1336,7 @@ async function route(req, res) {
     if (!device) return send(res, 400, { error: "Could not identify this device. Reload the page and tap Create my key again." });
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
     if (!(await turnstileOk(body.turnstile, ip))) return send(res, 400, { error: "Please complete the check and try again." });
+    if (signupIpCount(req) > MAX_SIGNUPS_PER_IP_DAY) return send(res, 429, { error: "Too many new keys from this connection today. Try again tomorrow, or sign in with a key you already have." });
     const count = await bumpDeviceCountToday(device);
     if (count > MAX_KEYS_PER_DEVICE_PER_DAY) {
       return send(res, 429, { error: resetMessage() });
@@ -1307,9 +1347,10 @@ async function route(req, res) {
     try { await Promise.all([firstSeen("device", anon("dev", device)), firstSeen("ip", anon("ip", ip || clientIp(req)))]); } catch {}
     return send(res, 200, { token });
   }
-  const token = req.headers["x-access-key"] || "";
-  const u = token ? await loadUser(token) : null;
-  if (!u) return send(res, 401, { error: "Key not recognized" });
+  const token = String(req.headers["x-access-key"] || "");
+  if (tooManyBad(req)) return send(res, 429, { error: "Too many wrong keys. Wait 15 minutes, then try again." });
+  const u = /^fa-[A-Za-z0-9_.=-]{10,80}$/.test(token) ? await loadUser(token) : null;
+  if (!u) { if (token) noteBad(req); return send(res, 401, { error: "Key not recognized" }); }
 
   if (req.url === "/api/status") { countActive(req); return send(res, 200, status(u)); }
 
